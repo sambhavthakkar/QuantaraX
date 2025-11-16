@@ -123,3 +123,24 @@ jaeger_data/
 # ============================================
 .mydocs
 
+# ============================================
+# Testing
+# ============================================
+gigabyte_logs
+gigabyte_received
+recv_1mb
+recv_5mb
+recv_10mb
+transfer_logs
+advanced_transfer_benchmark.sh
+simple_transfer_benchmark.sh
+advanced_transfer_benchmark.sh
+gigabyte_transfer_report.txt
+gigabyte_transfer_test.sh
+quantara_performance_analysis.md
+run_transfer_demo.sh
+simple_performance_test.sh
+simple_transfer_report.txt
+
+
+test-file.txt
