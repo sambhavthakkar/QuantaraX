@@ -99,7 +99,7 @@ class MonitoringPanel extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildThroughputCard(transfers),
+                    _buildThroughputCard(),
                     const SizedBox(height: 12),
                     _buildMetricRow('RTT', transfers.isNotEmpty && transfers.first.rttMs != null ? '${transfers.first.rttMs!.toStringAsFixed(0)} ms' : 'N/A'),
                     const SizedBox(height: 12),
@@ -122,7 +122,7 @@ class MonitoringPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildThroughputCard(List<TransferInfo> transfers) {
+  Widget _buildThroughputCard() {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -150,14 +150,14 @@ class MonitoringPanel extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildThroughputDetail('Current', _formatMbPerSec((transfers.isNotEmpty ? transfers.first.rateMbps : 0)/8.0)),
-              _buildThroughputDetail('Average', _formatMbPerSec(_avgMbPerSec(transfers))),
-              _buildThroughputDetail('Peak', _formatMbPerSec(_peakMbPerSec(transfers))),
-            ],
-          ),
+          // Row(
+          //   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          //   children: [
+          //     _buildThroughputDetail('Current', _formatMbPerSec((transfers.isNotEmpty ? transfers.first.rateMbps : 0)/8.0)),
+          //     _buildThroughputDetail('Average', _formatMbPerSec(_avgMbPerSec(transfers))),
+          //     _buildThroughputDetail('Peak', _formatMbPerSec(_peakMbPerSec(transfers))),
+          //   ],
+          // ),
         ],
       ),
     );
