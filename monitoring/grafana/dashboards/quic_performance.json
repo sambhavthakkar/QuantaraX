@@ -1,0 +1,7 @@
+{
+  "title": "QuantaraX - QUIC Performance",
+  "panels": [
+    {"type": "stat", "title": "Active Connections", "targets": [{"expr": "quantarax_quic_connections_active"}]},
+    {"type": "graph", "title": "Connection Attempts", "targets": [{"expr": "rate(quantarax_quic_connections_total[1m])"}]}
+  ]
+}

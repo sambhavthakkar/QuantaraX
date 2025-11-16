@@ -1,0 +1,7 @@
+{
+  "title": "QuantaraX - FEC Reliability",
+  "panels": [
+    {"type": "graph", "title": "FEC Reconstructions", "targets": [{"expr": "rate(quantarax_fec_reconstructions_total[5m])"}]},
+    {"type": "graph", "title": "FEC Failures", "targets": [{"expr": "rate(quantarax_fec_reconstruction_failures_total[5m])"}]}
+  ]
+}

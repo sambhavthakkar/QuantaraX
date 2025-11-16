@@ -1,0 +1,7 @@
+{
+  "title": "QuantaraX - Transfer Overview",
+  "panels": [
+    {"type": "stat", "title": "Active Transfers", "targets": [{"expr": "quantarax_transfers_active"}]},
+    {"type": "graph", "title": "Bytes Transferred", "targets": [{"expr": "rate(quantarax_bytes_transferred_total[1m])"}]}
+  ]
+}

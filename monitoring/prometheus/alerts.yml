@@ -1,0 +1,17 @@
+groups:
+  - name: quantarax
+    rules:
+      - alert: HighPacketLoss
+        expr: quantarax_quic_packet_loss_rate > 0.2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: High QUIC packet loss detected
+      - alert: TransferFailures
+        expr: increase(quantarax_transfers_total{status="failure"}[10m]) > 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: Transfer failures observed
