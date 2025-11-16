@@ -124,23 +124,29 @@ jaeger_data/
 .mydocs
 
 # ============================================
-# Testing
+# Testing & Performance Files (Ignore)
 # ============================================
-gigabyte_logs
-gigabyte_received
-recv_1mb
-recv_5mb
-recv_10mb
-transfer_logs
+gigabyte_logs/
+gigabyte_received/
+recv_1mb/
+recv_5mb/
+recv_10mb/
+transfer_logs/
+benchmark_*/
+demo_*/
+
+# Test scripts
 advanced_transfer_benchmark.sh
 simple_transfer_benchmark.sh
-advanced_transfer_benchmark.sh
-gigabyte_transfer_report.txt
 gigabyte_transfer_test.sh
-quantara_performance_analysis.md
 run_transfer_demo.sh
 simple_performance_test.sh
+
+# Test reports and outputs
+gigabyte_transfer_report.txt
 simple_transfer_report.txt
+quantarax_performance_analysis.md
 
-
+# Test files
 test-file.txt
+
