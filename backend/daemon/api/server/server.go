@@ -168,7 +168,10 @@ func (s *DaemonAPIServer) handleTransferPrefix(w http.ResponseWriter, r *http.Re
 	// Expect /api/v1/transfer/{session_id}/status
 	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/v1/transfer/"), "/")
 	sessionID := parts[0]
-	if len(parts) < 2 { http.NotFound(w, r); return }
+	if len(parts) < 2 {
+		http.NotFound(w, r)
+		return
+	}
 	action := parts[1]
 	if action == "status" {
 		st, err := s.transfer.GetTransferStatus(sessionID)
@@ -177,23 +180,36 @@ func (s *DaemonAPIServer) handleTransferPrefix(w http.ResponseWriter, r *http.Re
 			return
 		}
 		resp := &GetTransferStatusResponse{
-		State:                  toHTTPState(st.State),
-		ProgressPercent:        st.ProgressPercent,
-		ChunksTransferred:      st.ChunksTransferred,
-		TotalChunks:            st.TotalChunks,
-		BytesTransferred:       st.BytesTransferred,
-		TransferRateMbps:       st.TransferRateMbps,
-		EstimatedTimeRemaining: st.EstimatedTimeRemaining,
-		ErrorMessage:           st.ErrorMessage,
+			State:                  toHTTPState(st.State),
+			ProgressPercent:        st.ProgressPercent,
+			ChunksTransferred:      st.ChunksTransferred,
+			TotalChunks:            st.TotalChunks,
+			BytesTransferred:       st.BytesTransferred,
+			TransferRateMbps:       st.TransferRateMbps,
+			EstimatedTimeRemaining: st.EstimatedTimeRemaining,
+			ErrorMessage:           st.ErrorMessage,
+		}
+		// Optional diagnostics from session metadata
+		if sess, err2 := s.sessions.Get(sessionID); err2 == nil {
+			if v, ok := sess.Metadata["rtt_ms"]; ok {
+				if f, errp := strconv.ParseFloat(v, 64); errp == nil {
+					resp.RttMs = f
+				}
+			}
+			if v, ok := sess.Metadata["streams"]; ok {
+				if n, errp := strconv.Atoi(v); errp == nil {
+					resp.Streams = n
+				}
+			}
+			if v, ok := sess.Metadata["loss_rate_pct"]; ok {
+				if f, errp := strconv.ParseFloat(v, 64); errp == nil {
+					resp.LossRatePct = f
+				}
+			}
+		}
+		writeJSON(w, http.StatusOK, resp)
+		return
 	}
-	// Optional diagnostics from session metadata
-	if sess, err2 := s.sessions.Get(sessionID); err2 == nil {
-		if v, ok := sess.Metadata["rtt_ms"]; ok { if f, errp := strconv.ParseFloat(v, 64); errp==nil { resp.RttMs = f } }
-		if v, ok := sess.Metadata["streams"]; ok { if n, errp := strconv.Atoi(v); errp==nil { resp.Streams = n } }
-		if v, ok := sess.Metadata["loss_rate_pct"]; ok { if f, errp := strconv.ParseFloat(v, 64); errp==nil { resp.LossRatePct = f } }
-	}
-	writeJSON(w, http.StatusOK, resp)
-return
 }
 
 func (s *DaemonAPIServer) handleListTransfers(w http.ResponseWriter, r *http.Request) {

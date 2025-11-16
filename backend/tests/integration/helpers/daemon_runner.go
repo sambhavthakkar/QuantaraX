@@ -14,6 +14,9 @@ import (
 type DaemonRunner struct {
 	BinaryPath string
 	ListenAddr string
+	GRPCAddr   string
+	RESTAddr   string
+	ObservAddr string
 	LogPath    string
 	Process    *exec.Cmd
 	ctx        context.Context
@@ -21,10 +24,13 @@ type DaemonRunner struct {
 }
 
 // NewDaemonRunner creates a new daemon runner.
-func NewDaemonRunner(binaryPath, listenAddr string) *DaemonRunner {
+func NewDaemonRunner(binaryPath, grpcAddr, restAddr, observAddr string) *DaemonRunner {
 	return &DaemonRunner{
 		BinaryPath: binaryPath,
-		ListenAddr: listenAddr,
+		ListenAddr: grpcAddr, // Use grpcAddr as primary
+		GRPCAddr:   grpcAddr,
+		RESTAddr:   restAddr,
+		ObservAddr: observAddr,
 	}
 }
 
@@ -46,7 +52,9 @@ func (r *DaemonRunner) Start() error {
 	r.Process = exec.CommandContext(
 		r.ctx,
 		r.BinaryPath,
-		"--listen", r.ListenAddr,
+		"--grpc-addr", ":9090",
+		"--rest-addr", ":18080",
+		"--observ-addr", ":8081",
 		"--mode", "test",
 	)
 	r.Process.Stdout = logFile
@@ -65,7 +73,7 @@ func (r *DaemonRunner) Start() error {
 
 // waitForReady polls /health until the daemon reports ready.
 func (r *DaemonRunner) waitForReady() error {
-	url := fmt.Sprintf("http://%s/health", r.ListenAddr)
+	url := "http://127.0.0.1:8081/health"
 	for i := 0; i < 10; i++ {
 		time.Sleep(500 * time.Millisecond)
 		resp, err := http.Get(url)

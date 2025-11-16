@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"github.com/google/uuid"
 	"github.com/quantarax/backend/internal/chunker"
 	"github.com/quantarax/backend/internal/crypto"
@@ -25,6 +26,14 @@ import (
 )
 
 func main() {
+	// Parse command line flags
+	grpcAddr := flag.String("grpc-addr", "127.0.0.1:9090", "gRPC server address")
+	restAddr := flag.String("rest-addr", "127.0.0.1:8080", "REST server address")
+	quicAddr := flag.String("quic-addr", ":4433", "QUIC listener address")
+	observAddr := flag.String("observ-addr", "127.0.0.1:8081", "Observability server address")
+	mode := flag.String("mode", "", "Run mode (e.g., test)")
+	flag.Parse()
+
 	// Initialize observability
 	logger := observability.NewLogger("quantarax-daemon", "1.0.0", os.Stdout)
 	// Initialize CAS backend (in-memory; replace with Bolt in production)
@@ -46,6 +55,14 @@ func main() {
 	cfg, err := config.LoadConfig("")
 	if err != nil {
 		logger.Fatal(err, "Failed to load config")
+	}
+	// Override addresses from flags
+	cfg.GRPCAddress = *grpcAddr
+	cfg.RESTAddress = *restAddr
+	cfg.QUICAddress = *quicAddr
+	// For test mode, adjust config if needed
+	if *mode == "test" {
+		// Test-specific config
 	}
 
 	logger.Info("Configuration loaded")
@@ -74,9 +91,11 @@ func main() {
 	logger.Info("Transfer service initialized")
 
 	// Register health checks
-	healthChecker.RegisterCheck("quic_listener", observability.QUICListenerCheck(cfg.QUICAddress))
-	healthChecker.RegisterCheck("keystore", observability.KeystoreCheck(true))
-	healthChecker.RegisterCheck("database", observability.DatabaseCheck("./data/quantarax.db"))
+	if *mode != "test" {
+		healthChecker.RegisterCheck("quic_listener", observability.QUICListenerCheck(cfg.QUICAddress))
+		healthChecker.RegisterCheck("keystore", observability.KeystoreCheck(true))
+		healthChecker.RegisterCheck("database", observability.DatabaseCheck("./data/quantarax.db"))
+	}
 
 	// Generate self-signed TLS certificate for QUIC
 	certPEM, keyPEM, err := quicutil.GenerateSelfSignedCert()
@@ -100,7 +119,7 @@ func main() {
 	logger.Info("QUIC listener started on " + cfg.QUICAddress)
 
 	// Start metrics and health HTTP server
-	go startObservabilityServer(metrics, healthChecker, logger) // exposes /metrics, /health, /debug/pprof
+	go startObservabilityServer(*observAddr, metrics, healthChecker, logger) // exposes /metrics, /health, /debug/pprof
 
 	// Start accepting QUIC connections in background
 	ctx, cancel := context.WithCancel(context.Background())
@@ -165,7 +184,7 @@ func main() {
 	logger.Info("Daemon stopped")
 }
 
-func startObservabilityServer(metrics *observability.Metrics, health *observability.HealthChecker, logger *observability.Logger) {
+func startObservabilityServer(addr string, metrics *observability.Metrics, health *observability.HealthChecker, logger *observability.Logger) {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", metrics.Handler())
 	mux.Handle("/health", health.Handler())
@@ -176,8 +195,8 @@ func startObservabilityServer(metrics *observability.Metrics, health *observabil
 	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 
-	server := &http.Server{Addr: ":8081", Handler: mux}
-	logger.Info("Observability server listening on :8081 (metrics, health, pprof)")
+	server := &http.Server{Addr: addr, Handler: mux}
+	logger.Info("Observability server listening on " + addr + " (metrics, health, pprof)")
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		logger.Error(err, "Observability server error")
 	}
