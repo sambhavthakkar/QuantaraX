@@ -133,7 +133,10 @@ recv_5mb/
 recv_10mb/
 transfer_logs/
 benchmark_*/
+benchmark_received_1mb/
 demo_*/
+demo_received/
+scripts/
 
 # Test scripts
 advanced_transfer_benchmark.sh
