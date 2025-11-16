@@ -8,8 +8,6 @@ import (
 	"strings"
 
 	"github.com/quantarax/backend/daemon/manager"
-
-	"github.com/quantarax/backend/daemon/manager"
 	"github.com/quantarax/backend/daemon/service"
 	"github.com/quantarax/backend/internal/chunker"
 )
@@ -195,6 +193,7 @@ func (s *DaemonAPIServer) handleTransferPrefix(w http.ResponseWriter, r *http.Re
 		if v, ok := sess.Metadata["loss_rate_pct"]; ok { if f, errp := strconv.ParseFloat(v, 64); errp==nil { resp.LossRatePct = f } }
 	}
 	writeJSON(w, http.StatusOK, resp)
+return
 }
 
 func (s *DaemonAPIServer) handleListTransfers(w http.ResponseWriter, r *http.Request) {

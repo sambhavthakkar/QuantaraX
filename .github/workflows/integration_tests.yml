@@ -30,18 +30,45 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
 
-      - name: Build CLI tools
+      - name: Backend go mod download
+        working-directory: backend
         run: |
-          mkdir -p bin
-          go build -o bin/quic_send ./backend/cmd/quic_send
-          go build -o bin/quic_recv ./backend/cmd/quic_recv
-          go build -o bin/relay ./backend/relay
-          go build -o bin/bootstrap ./backend/bootstrap
-          go build -o bin/daemon ./backend/daemon
+          go mod download
+          go mod tidy
+
+      - name: Build backend module tools (quic_send, quic_recv, relay)
+        working-directory: backend
+        run: |
+          mkdir -p ../bin
+          go build -o ../bin/quic_send ./cmd/quic_send
+          go build -o ../bin/quic_recv ./cmd/quic_recv
+          go build -o ../bin/relay ./relay
+
+      - name: Bootstrap go mod download
+        working-directory: backend/bootstrap
+        run: |
+          go mod download
+          go mod tidy
+
+      - name: Build bootstrap module
+        working-directory: backend/bootstrap
+        run: |
+          go build -o ../../bin/bootstrap .
+
+      - name: Daemon go mod download
+        working-directory: backend/daemon
+        run: |
+          go mod download
+          go mod tidy
+
+      - name: Build daemon module
+        working-directory: backend/daemon
+        run: |
+          go build -o ../../bin/daemon .
 
       - name: Run integration tests
+        working-directory: backend
         env:
           PATH: ${{ github.workspace }}/bin:${{ env.PATH }}
         run: |
-          cd backend/tests/integration
-          go test ./... -v -timeout 30m
+          go test ./tests/integration/... -v -timeout 30m
