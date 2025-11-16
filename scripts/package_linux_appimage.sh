@@ -98,7 +98,16 @@ fi
 # 4) Build AppImage
 pushd "$DIST_DIR" >/dev/null
   echo "[4/4] Building AppImage -> $APPIMAGE_OUT"
+  # GitHub runners may lack FUSE; try normal mode first, then fallback to extracted AppRun
+  set +e
   appimagetool "$APPDIR" "$APPIMAGE_OUT"
+  STATUS=$?
+  set -e
+  if [ $STATUS -ne 0 ]; then
+    echo "appimagetool failed, attempting --appimage-extract fallback"
+    appimagetool --appimage-extract
+    ./squashfs-root/AppRun "$APPDIR" "$APPIMAGE_OUT"
+  fi
   chmod +x "$APPIMAGE_OUT"
   echo "Done: $APPIMAGE_OUT"
   echo "Run: chmod +x $APPIMAGE_OUT && QUANTARAX_AUTH_TOKEN=demo ./$APPIMAGE_OUT"
