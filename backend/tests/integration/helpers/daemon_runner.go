@@ -49,12 +49,19 @@ func (r *DaemonRunner) Start() error {
 		return fmt.Errorf("failed to create log file: %w", err)
 	}
 
+	// Get a unique QUIC port for testing
+	quicPort, err := GetFreeUDPPort()
+	if err != nil {
+		return fmt.Errorf("failed to get free UDP port: %w", err)
+	}
+	
 	r.Process = exec.CommandContext(
 		r.ctx,
 		r.BinaryPath,
 		"--grpc-addr", r.GRPCAddr,
 		"--rest-addr", r.RESTAddr,
 		"--observ-addr", r.ObservAddr,
+		"--quic-addr", fmt.Sprintf(":%d", quicPort),
 		"--mode", "test",
 	)
 	r.Process.Stdout = logFile
@@ -75,8 +82,8 @@ func (r *DaemonRunner) Start() error {
 func (r *DaemonRunner) waitForReady() error {
 	// Extract port from ObservAddr for health check
 	url := "http://" + r.ObservAddr + "/health"
-	for i := 0; i < 20; i++ {
-		time.Sleep(500 * time.Millisecond)
+	for i := 0; i < 30; i++ { // Increased attempts
+		time.Sleep(1 * time.Second) // Increased delay
 		resp, err := http.Get(url)
 		if err == nil && resp.StatusCode == http.StatusOK {
 			resp.Body.Close()
@@ -85,8 +92,12 @@ func (r *DaemonRunner) waitForReady() error {
 		if resp != nil {
 			resp.Body.Close()
 		}
+		// Log progress for debugging
+		if i%5 == 0 {
+			fmt.Printf("Waiting for daemon health check... attempt %d/30 (url: %s)\n", i+1, url)
+		}
 	}
-	return fmt.Errorf("daemon not ready after timeout")
+	return fmt.Errorf("daemon not ready after timeout at url: %s", url)
 }
 
 // Stop terminates the daemon.

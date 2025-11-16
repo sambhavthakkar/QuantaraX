@@ -245,19 +245,31 @@ func (s *TransferService) AcceptTransfer(
 		}
 	}
 
-	// Create session
-	session := manager.NewSession(
-		sessionID,
-		outputPath,
-		filepath.Base(outputPath),
-		manifest.FileSize,
-		int64(manifest.ChunkSize),
-		manager.DirectionReceive,
-	)
-
-	// Add to store
-	if err := s.store.Add(session); err != nil {
-		return "", nil, err
+	// Check if session already exists (from CreateTransfer)
+	existingSession, err := s.store.Get(sessionID)
+	if err == nil {
+		// Session exists from CreateTransfer, update it for receiving
+		existingSession.FilePath = outputPath
+		existingSession.FileName = filepath.Base(outputPath)
+		existingSession.Direction = manager.DirectionReceive
+		if err := s.store.Update(existingSession); err != nil {
+			return "", nil, err
+		}
+	} else {
+		// Create new session for pure receive scenario
+		session := manager.NewSession(
+			sessionID,
+			outputPath,
+			filepath.Base(outputPath),
+			manifest.FileSize,
+			int64(manifest.ChunkSize),
+			manager.DirectionReceive,
+		)
+		
+		// Add to store
+		if err := s.store.Add(session); err != nil {
+			return "", nil, err
+		}
 	}
 
 	return sessionID, manifest, nil
