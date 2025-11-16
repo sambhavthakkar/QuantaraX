@@ -1,0 +1,8 @@
+QuantaraX File Transfer Performance Report
+==========================================
+Generated: Sun Nov 16 11:29:47 AM IST 2025
+System: Linux fedora 6.17.4-200.fc42.x86_64 #1 SMP PREEMPT_DYNAMIC Sun Oct 19 18:47:49 UTC 2025 x86_64 GNU/Linux
+CPU: 12th Gen Intel(R) Core(TM) i7-12700H
+Memory: 15Gi
+Network Interface: wlo1
+
