@@ -145,6 +145,7 @@ simple_performance_test.sh
 # Test reports and outputs
 gigabyte_transfer_report.txt
 simple_transfer_report.txt
+transfer_performance_report.txt
 quantarax_performance_analysis.md
 
 # Test files
