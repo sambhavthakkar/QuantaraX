@@ -1,0 +1,5 @@
+# Relay Service
+
+Placeholder for future relay service implementation (Phase 10).
+
+The relay service will provide stateless QUIC forwarding for NAT traversal scenarios.

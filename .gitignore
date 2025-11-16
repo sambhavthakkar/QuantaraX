@@ -1,0 +1,125 @@
+# ============================================
+# Covers Go, Flutter, Docker, Logs, and Tests
+# ============================================
+
+# Go build artifacts
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Go test binaries
+*.test
+
+# Go coverage outputs
+*.out
+coverage.html
+
+# Dependency directories
+vendor/
+
+# Go workspace
+go.work
+
+# ============================================
+# Flutter / Dart
+# ============================================
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+*.lock
+
+# iOS / Android build outputs
+ios/Flutter/App.framework
+ios/.symlinks/
+android/.gradle/
+android/app/build/
+android/local.properties
+
+# ============================================
+# Editor / IDE / System files
+# ============================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ============================================
+# Cache and temporary files
+# ============================================
+.cache/
+tmp/
+temp/
+*.tmp
+
+# ============================================
+# Logs & test artifacts
+# ============================================
+*.log
+test-logs/
+logs/
+*.pid
+
+# Local test outputs (from helpers/)
+test-output/
+integration-results/
+coverage/
+testdata/
+
+# ============================================
+# Environment / Config / Keys
+# ============================================
+.env
+.env.local
+*.pem
+*.key
+*.crt
+
+# ============================================
+# Database & Storage
+# ============================================
+*.db
+*.sqlite
+*.sqlite3
+*.bolt
+*.mdb
+
+# ============================================
+# Docker & CI/CD
+# ============================================
+docker-compose.override.yml
+**/Dockerfile.*~
+.docker/
+.dockerignore
+build-cache/
+dist/
+release/
+
+# ============================================
+# Monitoring / Metrics
+# ============================================
+prometheus_data/
+grafana_data/
+jaeger_data/
+
+# ============================================
+# Misc cleanup
+# ============================================
+*.bak
+*.old
+*.orig
+
+# ============================================
+# My Docs
+# ============================================
+.mydocs
+

@@ -1,0 +1,436 @@
+syntax = "proto3";
+
+package daemon.v1;
+
+option go_package = "github.com/quantarax/backend/daemon/api/v1;daemonpb";
+
+import "google/api/annotations.proto";
+
+// DaemonService manages file transfer operations
+service DaemonService {
+  // CreateTransfer initiates a new file transfer as sender
+  rpc CreateTransfer(CreateTransferRequest) returns (CreateTransferResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/transfer/create"
+      body: "*"
+    };
+  }
+
+  // AcceptTransfer accepts and begins receiving an incoming transfer
+  rpc AcceptTransfer(AcceptTransferRequest) returns (AcceptTransferResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/transfer/accept"
+      body: "*"
+    };
+  }
+
+  // GetTransferStatus queries current status and metrics of a transfer
+  rpc GetTransferStatus(GetTransferStatusRequest) returns (GetTransferStatusResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/transfer/{session_id}/status"
+    };
+  }
+
+  // ListTransfers enumerates all active and recent transfer sessions
+  rpc ListTransfers(ListTransfersRequest) returns (ListTransfersResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/transfers"
+    };
+  }
+
+  // GetKeys retrieves daemon identity public key
+  rpc GetKeys(GetKeysRequest) returns (GetKeysResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/keys"
+    };
+  }
+
+  // StreamEvents subscribes to real-time transfer events
+  rpc StreamEvents(StreamEventsRequest) returns (stream TransferEvent) {}
+}
+
+// CreateTransferRequest initiates a new transfer
+message CreateTransferRequest {
+  string file_path = 1;
+  string recipient_id = 2;
+  int64 chunk_size_override = 3;
+  map<string, string> metadata = 4;
+}
+
+message CreateTransferResponse {
+  string session_id = 1;
+  string transfer_token = 2;
+  Manifest manifest = 3;
+  string qr_code_data = 4;
+  int64 estimated_duration = 5;
+}
+
+// AcceptTransferRequest accepts an incoming transfer
+message AcceptTransferRequest {
+  string transfer_token = 1;
+  string output_path = 2;
+  string resume_session_id = 3;
+}
+
+message AcceptTransferResponse {
+  string session_id = 1;
+  Manifest manifest = 2;
+  bytes sender_public_key = 3;
+  int64 total_chunks = 4;
+  int64 estimated_size = 5;
+}
+
+// GetTransferStatusRequest queries transfer status
+message GetTransferStatusRequest {
+  string session_id = 1;
+}
+
+message GetTransferStatusResponse {
+  TransferState state = 1;
+  double progress_percent = 2;
+  int64 chunks_transferred = 3;
+  int64 total_chunks = 4;
+  int64 bytes_transferred = 5;
+  double transfer_rate_mbps = 6;
+  int64 estimated_time_remaining = 7;
+  string error_message = 8;
+}
+
+// ListTransfersRequest enumerates transfers
+message ListTransfersRequest {
+  TransferState filter_state = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message ListTransfersResponse {
+  repeated TransferSummary transfers = 1;
+  int32 total_count = 2;
+  bool has_more = 3;
+}
+
+message TransferSummary {
+  string session_id = 1;
+  string file_name = 2;
+  TransferState state = 3;
+  double progress_percent = 4;
+  int64 start_time = 5;
+  TransferDirection direction = 6;
+}
+
+// GetKeysRequest retrieves identity public key
+message GetKeysRequest {}
+
+message GetKeysResponse {
+  string public_key_base64 = 1;
+  string fingerprint = 2;
+}
+
+// StreamEventsRequest subscribes to events
+message StreamEventsRequest {
+  string session_id_filter = 1;
+}
+
+message TransferEvent {
+  string session_id = 1;
+  EventType event_type = 2;
+  int64 timestamp = 3;
+  double progress_percent = 4;
+  string message = 5;
+  map<string, string> metadata = 6;
+}
+
+// Manifest represents file metadata
+message Manifest {
+  string file_name = 1;
+  int64 file_size = 2;
+  int64 chunk_size = 3;
+  int64 total_chunks = 4;
+  bytes merkle_root = 5;
+  repeated bytes chunk_hashes = 6;
+}
+
+// TransferState represents session states
+enum TransferState {
+  TRANSFER_STATE_UNSPECIFIED = 0;
+  TRANSFER_STATE_PENDING = 1;
+  TRANSFER_STATE_ACTIVE = 2;
+  TRANSFER_STATE_PAUSED = 3;
+  TRANSFER_STATE_COMPLETED = 4;
+  TRANSFER_STATE_FAILED = 5;
+}
+
+// TransferDirection indicates send or receive
+enum TransferDirection {
+  TRANSFER_DIRECTION_UNSPECIFIED = 0;
+  TRANSFER_DIRECTION_SEND = 1;
+  TRANSFER_DIRECTION_RECEIVE = 2;
+}
+
+// EventType classifies transfer events
+enum EventType {
+  EVENT_TYPE_UNSPECIFIED = 0;
+  EVENT_TYPE_STARTED = 1;
+  EVENT_TYPE_PROGRESS = 2;
+  EVENT_TYPE_PAUSED = 3;
+  EVENT_TYPE_RESUMED = 4;
+  EVENT_TYPE_COMPLETED = 5;
+  EVENT_TYPE_FAILED = 6;
+  EVENT_TYPE_CHUNK_SENT = 7;
+  EVENT_TYPE_CHUNK_RECEIVED = 8;
+}
+
+// Control protocol messages for Phase 6
+
+message ControlMessage {
+  oneof payload {
+    SignedManifest manifest = 1;
+    AckMessage ack = 2;
+    NackMessage nack = 3;
+    StatusMessage status = 4;
+  }
+}
+
+message SignedManifest {
+  bytes manifest_json = 1;
+  bytes signature = 2;
+  bytes public_key = 3;
+  int32 protocol_version = 4;
+}
+
+message AckMessage {
+  string chunk_ranges = 1;
+  int64 timestamp = 2;
+  string session_id = 3;
+}
+
+message NackMessage {
+  string missing_ranges = 1;
+  string reason = 2;
+  string session_id = 3;
+}
+
+message StatusMessage {
+  TransferState current_state = 1;
+  double progress_percent = 2;
+  string message = 3;
+  int64 timestamp = 4;
+}
+syntax = "proto3";
+
+package daemon.v1;
+
+option go_package = "github.com/quantarax/backend/daemon/api/v1;daemonpb";
+
+import "google/api/annotations.proto";
+
+// DaemonService manages file transfer operations
+service DaemonService {
+  // CreateTransfer initiates a new file transfer as sender
+  rpc CreateTransfer(CreateTransferRequest) returns (CreateTransferResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/transfer/create"
+      body: "*"
+    };
+  }
+
+  // AcceptTransfer accepts and begins receiving an incoming transfer
+  rpc AcceptTransfer(AcceptTransferRequest) returns (AcceptTransferResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/transfer/accept"
+      body: "*"
+    };
+  }
+
+  // GetTransferStatus queries current status and metrics of a transfer
+  rpc GetTransferStatus(GetTransferStatusRequest) returns (GetTransferStatusResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/transfer/{session_id}/status"
+    };
+  }
+
+  // ListTransfers enumerates all active and recent transfer sessions
+  rpc ListTransfers(ListTransfersRequest) returns (ListTransfersResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/transfers"
+    };
+  }
+
+  // GetKeys retrieves daemon identity public key
+  rpc GetKeys(GetKeysRequest) returns (GetKeysResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/keys"
+    };
+  }
+
+  // StreamEvents subscribes to real-time transfer events
+  rpc StreamEvents(StreamEventsRequest) returns (stream TransferEvent) {}
+}
+
+// CreateTransferRequest initiates a new transfer
+message CreateTransferRequest {
+  string file_path = 1;
+  string recipient_id = 2;
+  int64 chunk_size_override = 3;
+  map<string, string> metadata = 4;
+}
+
+message CreateTransferResponse {
+  string session_id = 1;
+  string transfer_token = 2;
+  Manifest manifest = 3;
+  string qr_code_data = 4;
+  int64 estimated_duration = 5;
+}
+
+// AcceptTransferRequest accepts an incoming transfer
+message AcceptTransferRequest {
+  string transfer_token = 1;
+  string output_path = 2;
+  string resume_session_id = 3;
+}
+
+message AcceptTransferResponse {
+  string session_id = 1;
+  Manifest manifest = 2;
+  bytes sender_public_key = 3;
+  int64 total_chunks = 4;
+  int64 estimated_size = 5;
+}
+
+// GetTransferStatusRequest queries transfer status
+message GetTransferStatusRequest {
+  string session_id = 1;
+}
+
+message GetTransferStatusResponse {
+  TransferState state = 1;
+  double progress_percent = 2;
+  int64 chunks_transferred = 3;
+  int64 total_chunks = 4;
+  int64 bytes_transferred = 5;
+  double transfer_rate_mbps = 6;
+  int64 estimated_time_remaining = 7;
+  string error_message = 8;
+}
+
+// ListTransfersRequest enumerates transfers
+message ListTransfersRequest {
+  TransferState filter_state = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message ListTransfersResponse {
+  repeated TransferSummary transfers = 1;
+  int32 total_count = 2;
+  bool has_more = 3;
+}
+
+message TransferSummary {
+  string session_id = 1;
+  string file_name = 2;
+  TransferState state = 3;
+  double progress_percent = 4;
+  int64 start_time = 5;
+  TransferDirection direction = 6;
+}
+
+// GetKeysRequest retrieves identity public key
+message GetKeysRequest {}
+
+message GetKeysResponse {
+  string public_key_base64 = 1;
+  string fingerprint = 2;
+}
+
+// StreamEventsRequest subscribes to events
+message StreamEventsRequest {
+  string session_id_filter = 1;
+}
+
+message TransferEvent {
+  string session_id = 1;
+  EventType event_type = 2;
+  int64 timestamp = 3;
+  double progress_percent = 4;
+  string message = 5;
+  map<string, string> metadata = 6;
+}
+
+// Manifest represents file metadata
+message Manifest {
+  string file_name = 1;
+  int64 file_size = 2;
+  int64 chunk_size = 3;
+  int64 total_chunks = 4;
+  bytes merkle_root = 5;
+  repeated bytes chunk_hashes = 6;
+}
+
+// TransferState represents session states
+enum TransferState {
+  TRANSFER_STATE_UNSPECIFIED = 0;
+  TRANSFER_STATE_PENDING = 1;
+  TRANSFER_STATE_ACTIVE = 2;
+  TRANSFER_STATE_PAUSED = 3;
+  TRANSFER_STATE_COMPLETED = 4;
+  TRANSFER_STATE_FAILED = 5;
+}
+
+// TransferDirection indicates send or receive
+enum TransferDirection {
+  TRANSFER_DIRECTION_UNSPECIFIED = 0;
+  TRANSFER_DIRECTION_SEND = 1;
+  TRANSFER_DIRECTION_RECEIVE = 2;
+}
+
+// EventType classifies transfer events
+enum EventType {
+  EVENT_TYPE_UNSPECIFIED = 0;
+  EVENT_TYPE_STARTED = 1;
+  EVENT_TYPE_PROGRESS = 2;
+  EVENT_TYPE_PAUSED = 3;
+  EVENT_TYPE_RESUMED = 4;
+  EVENT_TYPE_COMPLETED = 5;
+  EVENT_TYPE_FAILED = 6;
+  EVENT_TYPE_CHUNK_SENT = 7;
+  EVENT_TYPE_CHUNK_RECEIVED = 8;
+}
+
+// Control protocol messages for Phase 6
+
+message ControlMessage {
+  oneof payload {
+    SignedManifest manifest = 1;
+    AckMessage ack = 2;
+    NackMessage nack = 3;
+    StatusMessage status = 4;
+  }
+}
+
+message SignedManifest {
+  bytes manifest_json = 1;
+  bytes signature = 2;
+  bytes public_key = 3;
+  int32 protocol_version = 4;
+}
+
+message AckMessage {
+  string chunk_ranges = 1;
+  int64 timestamp = 2;
+  string session_id = 3;
+}
+
+message NackMessage {
+  string missing_ranges = 1;
+  string reason = 2;
+  string session_id = 3;
+}
+
+message StatusMessage {
+  TransferState current_state = 1;
+  double progress_percent = 2;
+  string message = 3;
+  int64 timestamp = 4;
+}

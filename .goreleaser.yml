@@ -1,0 +1,62 @@
+version: 2
+
+before:
+  hooks:
+    - go mod download
+    - go mod tidy
+
+builds:
+  - id: daemon
+    main: ./backend/daemon
+    binary: quantarax-daemon
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+  
+  - id: bootstrap
+    main: ./backend/bootstrap
+    binary: quantarax-bootstrap
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+
+archives:
+  - id: default
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE
+      - README.md
+      - CODE_OF_CONDUCT.md
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
