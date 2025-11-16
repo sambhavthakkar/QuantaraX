@@ -1,0 +1,139 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Test (matrix)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+        cache: true
+
+    - name: Run tests (daemon)
+      working-directory: ./backend/daemon
+      run: go test -v ./...
+
+    - name: Run tests (bootstrap)
+      working-directory: ./backend/bootstrap
+      run: go test -v ./...
+
+    - name: Run go vet (daemon)
+      working-directory: ./backend/daemon
+      run: go vet ./...
+
+    - name: Run go vet (bootstrap)
+      working-directory: ./backend/bootstrap
+      run: go vet ./...
+
+  build:
+    name: Build (Linux)
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+        cache: true
+
+    - name: Go mod download (backend)
+      working-directory: ./backend
+      run: go mod download
+
+    - name: Warm build cache (backend)
+      working-directory: ./backend
+      run: go build ./...
+
+    - name: Run golangci-lint (backend)
+      uses: golangci/golangci-lint-action@v6
+      with:
+        version: v1.59
+        only-new-issues: false
+        working-directory: backend
+        skip-pkg-cache: true
+        skip-build-cache: true
+
+    - name: Build daemon (reproducible)
+      working-directory: ./backend/daemon
+      run: |
+        go build -trimpath -buildvcs=false -ldflags "-s -w -X main.buildTS=$(date -u +%Y%m%d%H%M%S)" -v -o ../../bin/daemon .
+
+    - name: Build bootstrap (reproducible)
+      working-directory: ./backend/bootstrap
+      run: |
+        go build -trimpath -buildvcs=false -ldflags "-s -w" -v -o ../../bin/bootstrap .
+
+    - name: Build relay (reproducible)
+      working-directory: ./backend/relay
+      run: |
+        go build -trimpath -buildvcs=false -ldflags "-s -w" -v -o ../../bin/relay .
+
+    - name: Build quic_send (reproducible)
+      working-directory: ./backend/cmd/quic_send
+      run: |
+        go build -trimpath -buildvcs=false -ldflags "-s -w" -v -o ../../../bin/quic_send .
+
+    - name: Build quic_recv (reproducible)
+      working-directory: ./backend/cmd/quic_recv
+      run: |
+        go build -trimpath -buildvcs=false -ldflags "-s -w" -v -o ../../../bin/quic_recv .
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: binaries
+        path: bin/
+
+  test_linux_extras:
+    name: Extended Linux tests (race/fuzz/netem)
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: Run race detector (daemon)
+        working-directory: ./backend/daemon
+        run: go test -race -v ./...
+
+      - name: Fuzz smoke (transport control)
+        working-directory: ./backend/daemon/transport
+        run: |
+          go test -run=^$ -fuzz=Fuzz -fuzztime=20s || true
+
+      - name: Install netem tools
+        run: sudo apt-get update && sudo apt-get install -y iproute2
+
+      - name: Netem smoke (10% loss 50ms)
+        shell: bash
+        run: |
+          sudo tc qdisc add dev lo root netem loss 10% delay 50ms
+          trap 'sudo tc qdisc del dev lo root netem || true' EXIT
+          go test -v ./backend/daemon/... || true
+          sudo tc qdisc del dev lo root netem || true

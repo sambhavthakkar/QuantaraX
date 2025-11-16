@@ -1,0 +1,50 @@
+name: E2E Linux
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  e2e-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Increase UDP buffer sizes (required for quic-go)
+        run: |
+          sudo sysctl -w net.core.rmem_max=16777216
+          sudo sysctl -w net.core.rmem_default=16777216
+          sudo sysctl -w net.core.wmem_max=16777216
+          sudo sysctl -w net.core.wmem_default=16777216
+          sysctl net.core.rmem_max net.core.rmem_default net.core.wmem_max net.core.wmem_default
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: Build all binaries
+        run: |
+          mkdir -p bin
+          (cd backend/bootstrap && go build -v -o ../../bin/bootstrap .)
+          (cd backend/relay && go build -v -o ../../bin/relay .)
+          (cd backend/cmd/quic_recv && go build -v -o ../../../bin/quic_recv .)
+          (cd backend/cmd/quic_send && go build -v -o ../../../bin/quic_send .)
+
+      - name: Setup netem (lossy network)
+        run: |
+          sudo tc qdisc add dev lo root netem loss 5%
+
+      - name: Run E2E scenarios
+        working-directory: ./backend
+        env:
+          OTEL_EXPORTER_JAEGER_ENDPOINT: http://localhost:14268/api/traces
+        run: |
+          go test -v ./tests/integration/...
+
+      - name: Teardown netem
+        if: always()
+        run: |
+          sudo tc qdisc del dev lo root || true

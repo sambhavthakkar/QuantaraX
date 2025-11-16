@@ -1,0 +1,9 @@
+FROM golang:1.23 AS build
+WORKDIR /src
+COPY . .
+RUN cd backend/cmd/quic_recv && go build -o /out/quic_recv .
+
+FROM gcr.io/distroless/base-debian12
+COPY --from=build /out/quic_recv /usr/local/bin/quic_recv
+EXPOSE 4433
+ENTRYPOINT ["/usr/local/bin/quic_recv", "--listen", ":4433", "--output-dir", "/data"]

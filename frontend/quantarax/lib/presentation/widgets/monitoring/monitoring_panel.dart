@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../config/app_theme.dart';
+import '../../../core/services/transfer_store.dart';
 import 'package:gradient_borders/gradient_borders.dart';
 import 'package:simple_gradient_text/simple_gradient_text.dart';
 
@@ -13,6 +14,17 @@ class MonitoringPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return StreamBuilder<List<TransferInfo>>(
+      stream: TransferStore.instance.observe(),
+      initialData: TransferStore.instance.snapshot,
+      builder: (context, snap) {
+        final transfers = snap.data ?? const [];
+        return _buildPanel(context, transfers);
+      },
+    );
+  }
+
+  Widget _buildPanel(BuildContext context, List<TransferInfo> transfers) {
     return Container(
       width: isMobile ? double.infinity : 360,
       color: AppTheme.sidebarBg,
@@ -87,19 +99,19 @@ class MonitoringPanel extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildThroughputCard(),
+                    _buildThroughputCard(transfers),
                     const SizedBox(height: 12),
-                    _buildMetricRow('RTT', '121 ms'),
+                    _buildMetricRow('RTT', transfers.isNotEmpty && transfers.first.rttMs != null ? '${transfers.first.rttMs!.toStringAsFixed(0)} ms' : 'N/A'),
                     const SizedBox(height: 12),
-                    _buildMetricRow('Streams', '16'),
+                    _buildMetricRow('Streams', transfers.isNotEmpty && transfers.first.streams != null ? '${transfers.first.streams}' : 'N/A'),
                     const SizedBox(height: 12),
-                    _buildMetricRow('Loss Rate', '0.03%'),
+                    _buildMetricRow('Loss Rate', transfers.isNotEmpty && transfers.first.lossRatePct != null ? '${transfers.first.lossRatePct!.toStringAsFixed(2)}%' : 'N/A'),
                     const SizedBox(height: 12),
                     _buildToggleMetric('Auto-FEC', true),
                     const SizedBox(height: 12),
                     _buildToggleMetric('Encryption', true),
                     const SizedBox(height: 16),
-                    _buildSpeedChart(),
+                    _buildSpeedChart(transfers.isNotEmpty ? transfers.first.speedHistoryMbPerSec : const <double>[]),
                   ],
                 ),
               ),
@@ -110,7 +122,7 @@ class MonitoringPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildThroughputCard() {
+  Widget _buildThroughputCard(List<TransferInfo> transfers) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -141,14 +153,26 @@ class MonitoringPanel extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildThroughputDetail('Current', '23.8 MB/s'),
-              _buildThroughputDetail('Average', '27.6 MB/s'),
-              _buildThroughputDetail('Peak', '34.6 MB/s'),
+              _buildThroughputDetail('Current', _formatMbPerSec((transfers.isNotEmpty ? transfers.first.rateMbps : 0)/8.0)),
+              _buildThroughputDetail('Average', _formatMbPerSec(_avgMbPerSec(transfers))),
+              _buildThroughputDetail('Peak', _formatMbPerSec(_peakMbPerSec(transfers))),
             ],
           ),
         ],
       ),
     );
+  }
+
+  String _formatMbPerSec(double v) => '${v.toStringAsFixed(2)} MB/s';
+  double _avgMbPerSec(List<TransferInfo> tr) {
+    if (tr.isEmpty || tr.first.speedHistoryMbPerSec.isEmpty) return 0;
+    final s = tr.first.speedHistoryMbPerSec;
+    final sum = s.fold<double>(0, (a,b)=>a+b);
+    return sum / s.length;
+  }
+  double _peakMbPerSec(List<TransferInfo> tr) {
+    if (tr.isEmpty || tr.first.speedHistoryMbPerSec.isEmpty) return 0;
+    return tr.first.speedHistoryMbPerSec.reduce((a,b)=>a>b?a:b);
   }
 
   Widget _buildThroughputDetail(String label, String value) {
@@ -221,7 +245,7 @@ class MonitoringPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildSpeedChart() {
+  Widget _buildSpeedChart(List<double> series) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -254,14 +278,7 @@ class MonitoringPanel extends StatelessWidget {
                 lineBarsData: [
                   LineChartBarData(
                     spots: [
-                      const FlSpot(0, 12.3),
-                      const FlSpot(1, 18.6),
-                      const FlSpot(2, 22.4),
-                      const FlSpot(3, 25.0),
-                      const FlSpot(4, 23.8),
-                      const FlSpot(5, 28.6),
-                      const FlSpot(6, 26.2),
-                      const FlSpot(7, 23.8),
+                      ...List.generate(series.length, (i) => FlSpot(i.toDouble(), series[i])),
                     ],
                     isCurved: true,
                     gradient: AppTheme.primaryGradient,
@@ -282,9 +299,9 @@ class MonitoringPanel extends StatelessWidget {
                   ),
                 ],
                 minX: 0,
-                maxX: 7,
-                minY: 10,
-                maxY: 35,
+                maxX: series.isNotEmpty ? (series.length-1).toDouble() : 0,
+                minY: 0,
+                maxY: (series.isNotEmpty ? (series.reduce((a,b)=>a>b?a:b)) : 10) * 1.2,
               ),
             ),
           ),

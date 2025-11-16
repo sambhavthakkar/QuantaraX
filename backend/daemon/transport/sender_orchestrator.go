@@ -11,8 +11,8 @@ import (
 
 // OrchestratedSender manages per-class worker pools and control routing.
 type OrchestratedSender struct {
-	conn   *QUICConnection
-	pools  map[PriorityClass]*ChunkWorkerPool
+	conn  *QUICConnection
+	pools map[PriorityClass]*ChunkWorkerPool
 }
 
 // NewOrchestratedSender creates worker pools for P0/P1/P2 according to the domain profile.
@@ -20,10 +20,14 @@ func NewOrchestratedSender(conn *QUICConnection, profile DomainTransportProfile,
 	pools := make(map[PriorityClass]*ChunkWorkerPool)
 	mk := func(class PriorityClass, cfg ClassConfig) *ChunkWorkerPool {
 		workers := cfg.Streams
-		if workers <= 0 { workers = 1 }
+		if workers <= 0 {
+			workers = 1
+		}
 		chunkSize := baseChunkSize
-		if cfg.ChunkBytes > 0 { chunkSize = int64(cfg.ChunkBytes) }
-	p := NewChunkWorkerPool(workers, 1024, conn.GetConnection(), sessionKeys, sessionID, filePath, chunkSize, onChunkSent, onChunkFailed)
+		if cfg.ChunkBytes > 0 {
+			chunkSize = int64(cfg.ChunkBytes)
+		}
+		p := NewChunkWorkerPool(workers, 1024, conn.GetConnection(), sessionKeys, sessionID, filePath, chunkSize, onChunkSent, onChunkFailed)
 		p.SetScheduler(conn.Scheduler(), class)
 		return p
 	}
@@ -32,7 +36,9 @@ func NewOrchestratedSender(conn *QUICConnection, profile DomainTransportProfile,
 	pools[PriorityP1] = mk(PriorityP1, profile.P1)
 	pools[PriorityP2] = mk(PriorityP2, profile.P2)
 	// Start pools
-	for _, p := range pools { p.Start() }
+	for _, p := range pools {
+		p.Start()
+	}
 	return &OrchestratedSender{conn: conn, pools: pools}
 }
 
@@ -53,12 +59,16 @@ func (s *OrchestratedSender) EnqueueBulk(chunkIndex int64) error {
 
 // Close stops all pools.
 func (s *OrchestratedSender) Close() {
-	for _, p := range s.pools { p.Stop() }
+	for _, p := range s.pools {
+		p.Stop()
+	}
 }
 
 // Adjust updates chunk sizes and worker counts according to autotuning decisions.
 func (s *OrchestratedSender) Adjust(chunkBytes int, totalStreams int) {
-	if totalStreams < 2 { totalStreams = 2 }
+	if totalStreams < 2 {
+		totalStreams = 2
+	}
 	p1 := totalStreams / 2
 	p2 := totalStreams - p1
 	if pool, ok := s.pools[PriorityP1]; ok {

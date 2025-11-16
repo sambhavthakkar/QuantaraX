@@ -139,7 +139,7 @@ func (p *EventPublisher) PublishStarted(sessionID, fileName string, totalSize in
 }
 
 // PublishProgress publishes a progress update event
-func (p *EventPublisher) PublishProgress(sessionID string, progressPercent float64, transferRateMbps float64) {
+func (p *EventPublisher) PublishProgress(sessionID string, progressPercent float64, transferRateMbps float64, etaSeconds int64) {
 	p.Publish(&TransferEvent{
 		SessionID:       sessionID,
 		EventType:       EventProgress,
@@ -148,6 +148,7 @@ func (p *EventPublisher) PublishProgress(sessionID string, progressPercent float
 		Message:         "Transfer in progress",
 		Metadata: map[string]string{
 			"transfer_rate_mbps": formatFloat(transferRateMbps),
+			"eta_seconds":        strconv.FormatInt(etaSeconds, 10),
 		},
 	})
 }

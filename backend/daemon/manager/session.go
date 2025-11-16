@@ -68,12 +68,12 @@ type Session struct {
 	UpdateTime        time.Time
 	ErrorMessage      string
 	Metadata          map[string]string
-	
+
 	// Transfer metrics
-	transferRateSamples []float64
-	lastUpdateTime      time.Time
+	transferRateSamples  []float64
+	lastUpdateTime       time.Time
 	lastBytesTransferred int64
-	
+
 	mu sync.RWMutex
 }
 
@@ -83,21 +83,21 @@ func NewSession(id, filePath, fileName string, fileSize, chunkSize int64, direct
 	if fileSize%chunkSize != 0 {
 		totalChunks++
 	}
-	
+
 	return &Session{
-		ID:               id,
-		FilePath:         filePath,
-		FileName:         fileName,
-		FileSize:         fileSize,
-		ChunkSize:        chunkSize,
-		TotalChunks:      totalChunks,
-		State:            StatePending,
-		Direction:        direction,
-		StartTime:        time.Now(),
-		UpdateTime:       time.Now(),
-		Metadata:         make(map[string]string),
+		ID:                  id,
+		FilePath:            filePath,
+		FileName:            fileName,
+		FileSize:            fileSize,
+		ChunkSize:           chunkSize,
+		TotalChunks:         totalChunks,
+		State:               StatePending,
+		Direction:           direction,
+		StartTime:           time.Now(),
+		UpdateTime:          time.Now(),
+		Metadata:            make(map[string]string),
 		transferRateSamples: make([]float64, 0, 10),
-		lastUpdateTime:   time.Now(),
+		lastUpdateTime:      time.Now(),
 	}
 }
 
@@ -105,20 +105,20 @@ func NewSession(id, filePath, fileName string, fileSize, chunkSize int64, direct
 func (s *Session) UpdateProgress(bytesTransferred, chunksTransferred int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	now := time.Now()
 	duration := now.Sub(s.lastUpdateTime).Seconds()
-	
+
 	if duration > 0 {
 		bytesDelta := bytesTransferred - s.lastBytesTransferred
 		rate := float64(bytesDelta) / duration / 1024 / 1024 * 8 // Mbps
-		
+
 		s.transferRateSamples = append(s.transferRateSamples, rate)
 		if len(s.transferRateSamples) > 10 {
 			s.transferRateSamples = s.transferRateSamples[1:]
 		}
 	}
-	
+
 	s.BytesTransferred = bytesTransferred
 	s.ChunksTransferred = chunksTransferred
 	s.UpdateTime = now
@@ -130,11 +130,11 @@ func (s *Session) UpdateProgress(bytesTransferred, chunksTransferred int64) {
 func (s *Session) GetTransferRate() float64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	if len(s.transferRateSamples) == 0 {
 		return 0
 	}
-	
+
 	var sum float64
 	for _, rate := range s.transferRateSamples {
 		sum += rate
@@ -146,7 +146,7 @@ func (s *Session) GetTransferRate() float64 {
 func (s *Session) GetProgressPercent() float64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	if s.TotalChunks == 0 {
 		return 0
 	}
@@ -157,12 +157,12 @@ func (s *Session) GetProgressPercent() float64 {
 func (s *Session) GetEstimatedTimeRemaining() int64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	rate := s.GetTransferRate()
 	if rate == 0 {
 		return 0
 	}
-	
+
 	remainingBytes := s.FileSize - s.BytesTransferred
 	remainingSeconds := float64(remainingBytes) / (rate * 1024 * 1024 / 8)
 	return int64(remainingSeconds)
@@ -172,7 +172,7 @@ func (s *Session) GetEstimatedTimeRemaining() int64 {
 func (s *Session) TransitionTo(newState TransferState, errorMsg string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	// Validate state transition
 	validTransitions := map[TransferState][]TransferState{
 		StatePending:   {StateActive, StateFailed},
@@ -181,7 +181,7 @@ func (s *Session) TransitionTo(newState TransferState, errorMsg string) error {
 		StateCompleted: {},
 		StateFailed:    {},
 	}
-	
+
 	allowed := validTransitions[s.State]
 	isValid := false
 	for _, allowedState := range allowed {
@@ -190,17 +190,17 @@ func (s *Session) TransitionTo(newState TransferState, errorMsg string) error {
 			break
 		}
 	}
-	
+
 	if !isValid {
 		return ErrInvalidStateTransition
 	}
-	
+
 	s.State = newState
 	s.UpdateTime = time.Now()
 	if errorMsg != "" {
 		s.ErrorMessage = errorMsg
 	}
-	
+
 	return nil
 }
 

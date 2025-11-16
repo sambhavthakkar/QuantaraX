@@ -18,10 +18,10 @@ const (
 type AckStrategy string
 
 const (
-	AckImmediate    AckStrategy = "immediate"
-	AckDelayed10ms  AckStrategy = "delayed-10ms"
-	AckDelayed25ms  AckStrategy = "delayed-25ms"
-	AckMixed        AckStrategy = "mixed" // class-based
+	AckImmediate   AckStrategy = "immediate"
+	AckDelayed10ms AckStrategy = "delayed-10ms"
+	AckDelayed25ms AckStrategy = "delayed-25ms"
+	AckMixed       AckStrategy = "mixed" // class-based
 )
 
 // ClassConfig describes per-class behavior

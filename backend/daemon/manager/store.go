@@ -29,11 +29,11 @@ func NewSessionStore() *SessionStore {
 func (s *SessionStore) Add(session *Session) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if _, exists := s.sessions[session.ID]; exists {
 		return ErrSessionAlreadyExists
 	}
-	
+
 	s.sessions[session.ID] = session
 	return nil
 }
@@ -42,12 +42,12 @@ func (s *SessionStore) Add(session *Session) error {
 func (s *SessionStore) Get(sessionID string) (*Session, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	session, exists := s.sessions[sessionID]
 	if !exists {
 		return nil, ErrSessionNotFound
 	}
-	
+
 	return session, nil
 }
 
@@ -55,11 +55,11 @@ func (s *SessionStore) Get(sessionID string) (*Session, error) {
 func (s *SessionStore) Update(session *Session) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if _, exists := s.sessions[session.ID]; !exists {
 		return ErrSessionNotFound
 	}
-	
+
 	s.sessions[session.ID] = session
 	return nil
 }
@@ -68,11 +68,11 @@ func (s *SessionStore) Update(session *Session) error {
 func (s *SessionStore) Delete(sessionID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if _, exists := s.sessions[sessionID]; !exists {
 		return ErrSessionNotFound
 	}
-	
+
 	delete(s.sessions, sessionID)
 	return nil
 }
@@ -81,7 +81,7 @@ func (s *SessionStore) Delete(sessionID string) error {
 func (s *SessionStore) List(filterState *TransferState, limit, offset int) ([]*Session, int) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	var filtered []*Session
 	for _, session := range s.sessions {
 		if filterState != nil && session.State != *filterState {
@@ -89,19 +89,19 @@ func (s *SessionStore) List(filterState *TransferState, limit, offset int) ([]*S
 		}
 		filtered = append(filtered, session)
 	}
-	
+
 	total := len(filtered)
-	
+
 	// Apply pagination
 	if offset >= len(filtered) {
 		return []*Session{}, total
 	}
-	
+
 	end := offset + limit
 	if end > len(filtered) || limit == 0 {
 		end = len(filtered)
 	}
-	
+
 	return filtered[offset:end], total
 }
 
@@ -109,10 +109,10 @@ func (s *SessionStore) List(filterState *TransferState, limit, offset int) ([]*S
 func (s *SessionStore) CleanupOldSessions(maxAge time.Duration) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	cutoff := time.Now().Add(-maxAge)
 	removed := 0
-	
+
 	for id, session := range s.sessions {
 		// Only cleanup completed or failed sessions
 		if (session.State == StateCompleted || session.State == StateFailed) &&
@@ -121,7 +121,7 @@ func (s *SessionStore) CleanupOldSessions(maxAge time.Duration) int {
 			removed++
 		}
 	}
-	
+
 	return removed
 }
 

@@ -5,6 +5,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:simple_gradient_text/simple_gradient_text.dart';
 import '../../../config/app_theme.dart';
+import '../../../core/services/transfer_store.dart';
+
 
 class ChatPanel extends StatelessWidget {
   final VoidCallback? onToggleMonitor;
@@ -26,7 +28,7 @@ class ChatPanel extends StatelessWidget {
     if (result == null || result.files.isEmpty) return;
     final file = result.files.first;
 
-    // Optional: Show a lightweight confirmation/snackbar
+    // Wire to API controls: show panel at top
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Selected: ${file.name} (${file.size} bytes)'),
@@ -140,8 +142,23 @@ class ChatPanel extends StatelessWidget {
                         const SizedBox(height: 16),
                         _buildMessage('hnji, sending!', isFromPeer: false),
                         const SizedBox(height: 24),
-                        // Transfer Card
-                        TransferCard(),
+                        // Transfer Cards (live)
+                        StreamBuilder<List<TransferInfo>>(
+                          stream: TransferStore.instance.observe(),
+                          initialData: TransferStore.instance.snapshot,
+                          builder: (context, snap) {
+                            final items = snap.data ?? const [];
+                            if (items.isEmpty) return const SizedBox.shrink();
+                            return Column(
+                              children: [
+                                for (final t in items) ...[
+                                  TransferCard(info: t),
+                                  const SizedBox(height: 8),
+                                ]
+                              ],
+                            );
+                          },
+                        ),
                         const SizedBox(height: 8),
                       ],
                     ),
@@ -425,7 +442,8 @@ class ChatPanel extends StatelessWidget {
 }
 
 class TransferCard extends StatefulWidget {
-  const TransferCard({super.key});
+  final TransferInfo? info;
+  const TransferCard({super.key, this.info});
 
   @override
   State<TransferCard> createState() => _TransferCardState();
@@ -598,7 +616,7 @@ class _TransferCardState extends State<TransferCard>
                 child: _showDetails
                     ? Padding(
                         padding: const EdgeInsets.only(top: 12),
-                        child: const _TransferDetails(),
+                        child: _TransferDetails(info: widget.info),
                       )
                     : const SizedBox.shrink(),
               ),
@@ -608,10 +626,32 @@ class _TransferCardState extends State<TransferCard>
       ),
     );
   }
+  String _formatBytes(int bytes) {
+   const units = ['B','KB','MB','GB','TB'];
+   double v = bytes.toDouble();
+   int i = 0;
+   while (v >= 1024 && i < units.length-1) { v /= 1024; i++; }
+   return '${v.toStringAsFixed(2)} ${units[i]}';
+ }
+
+ String _formatEta(int seconds) {
+   final m = (seconds ~/ 60).toString().padLeft(2,'0');
+   final s = (seconds % 60).toString().padLeft(2,'0');
+   return '$m:$s';
+ }
 }
 
 class _TransferDetails extends StatelessWidget {
-  const _TransferDetails();
+  final TransferInfo? info;
+  const _TransferDetails({super.key, this.info});
+
+  String _formatBytes(int bytes) {
+    const units = ['B','KB','MB','GB','TB'];
+    double v = bytes.toDouble();
+    int i = 0;
+    while (v >= 1024 && i < units.length-1) { v /= 1024; i++; }
+    return '${v.toStringAsFixed(2)} ${units[i]}';
+  }
 
   Widget _kv(String label, String value) {
     return Row(
@@ -665,9 +705,9 @@ class _TransferDetails extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Essentials – always visible
-          _kv('File name', 'design-system-v2.zip'),
+          _kv('File name', info?.fileName ?? '—'),
           const SizedBox(height: 8),
-          _kv('File size', '1.86 GB'),
+          _kv('File size', info?.fileSize != null ? _formatBytes(info!.fileSize!) : '—'),
           const SizedBox(height: 8),
           _kv('File type', 'ZIP'),
           const SizedBox(height: 8),
@@ -676,14 +716,14 @@ class _TransferDetails extends StatelessWidget {
           const Divider(height: 20, color: AppTheme.border),
 
           // Transfer Identity
-          _kv('Transfer ID', '9F4C-23B1'),
+          _kv('Transfer ID', info?.sessionId ?? '—'),
           const SizedBox(height: 8),
-          _kv('Sender', '@css.quantara'),
+          _kv('Sender', 'peer-local'),
 
           const Divider(height: 20, color: AppTheme.border),
 
           // Transfer Structure (QUIC + FEC)
-          _kv('Chunks', '64 @ 4 MB'),
+          _kv('Chunks', info?.totalChunks != null ? '${info!.totalChunks} total' : '—'),
           const SizedBox(height: 8),
           _kv('FEC', 'Adaptive, 15% overhead'),
           const SizedBox(height: 8),

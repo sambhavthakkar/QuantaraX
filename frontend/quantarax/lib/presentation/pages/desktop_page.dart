@@ -26,11 +26,8 @@ class _DesktopScaffoldState extends State<_DesktopScaffold> {
         const Sidebar(),
 
         // Main Chat Panel
-        Expanded(
-          child: ChatPanel(
-            onToggleMonitor: _toggleMonitor,
-            isMonitorOpen: showMonitor,
-          ),
+        const Expanded(
+          child: ChatPanel(),
         ),
 
         // Right Monitoring Panel (toggleable)
@@ -62,11 +59,8 @@ class _TabletScaffoldState extends State<_TabletScaffold> {
           const SizedBox(width: 320, child: Sidebar()),
         
         // Chat Panel (always visible)
-        Expanded(
-          child: ChatPanel(
-            onToggleMonitor: _toggleMonitor,
-            isMonitorOpen: showMonitor,
-          ),
+        const Expanded(
+          child: ChatPanel(),
         ),
         
         // Monitoring Panel (shown when toggled)

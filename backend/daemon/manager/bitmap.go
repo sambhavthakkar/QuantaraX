@@ -206,9 +206,9 @@ func (bs *BitmapStore) LoadBitmap(sessionID string, totalChunks int64) (*ChunkBi
 	defer bs.mu.RUnlock()
 
 	var (
-		bitmapData      []byte
-		chunksReceived  int64
-		lastUpdated     time.Time
+		bitmapData     []byte
+		chunksReceived int64
+		lastUpdated    time.Time
 	)
 
 	query := `

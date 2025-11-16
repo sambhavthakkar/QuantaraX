@@ -10,20 +10,22 @@ type LossEstimator struct {
 	lastUpdate time.Time
 }
 
-func (le *LossEstimator) OnSent(n int64)   { le.windowSent += n }
-func (le *LossEstimator) OnLost(n int64)   { le.windowLost += n }
+func (le *LossEstimator) OnSent(n int64) { le.windowSent += n }
+func (le *LossEstimator) OnLost(n int64) { le.windowLost += n }
 func (le *LossEstimator) Estimate() float64 {
-	if le.windowSent == 0 { return 0 }
+	if le.windowSent == 0 {
+		return 0
+	}
 	return float64(le.windowLost) / float64(le.windowSent)
 }
 
 // FECController adapts K/R based on loss
 
 type FECController struct {
-	k, r   int
-	loss   *LossEstimator
+	k, r    int
+	loss    *LossEstimator
 	lastMsg time.Time
-	update func(k, r int, reason string)
+	update  func(k, r int, reason string)
 }
 
 func NewFECController(initK, initR int, update func(k, r int, reason string)) *FECController {

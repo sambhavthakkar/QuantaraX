@@ -10,11 +10,15 @@ var casBackend CASBackend
 func SetCASBackend(b CASBackend) { casBackend = b }
 
 func casHas(hash string) bool {
-	if casBackend == nil { return false }
+	if casBackend == nil {
+		return false
+	}
 	return casBackend.HasChunk(hash)
 }
 
 func casPut(hash string, length int) {
-	if casBackend == nil { return }
+	if casBackend == nil {
+		return
+	}
 	_ = casBackend.PutChunk(hash, length)
 }

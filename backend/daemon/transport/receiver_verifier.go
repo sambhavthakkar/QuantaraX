@@ -7,8 +7,8 @@ import (
 // ZeroLossVerifier enforces strict completion policy for Medical domain.
 // Placeholder: tracks missing chunks and requires all present before completion.
 type ZeroLossVerifier struct {
-	total   int
-	recvd   map[int]bool
+	total int
+	recvd map[int]bool
 }
 
 func NewZeroLossVerifier(totalChunks int) *ZeroLossVerifier {

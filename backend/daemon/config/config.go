@@ -23,10 +23,10 @@ type Config struct {
 func DefaultConfig() *Config {
 	homeDir, _ := os.UserHomeDir()
 	keysDir := filepath.Join(homeDir, ".local", "share", "quantarax", "keys")
-	
+
 	return &Config{
-		GRPCAddress:            "localhost:8080",
-		RESTAddress:            "localhost:8081",
+		GRPCAddress:            "127.0.0.1:9090",
+		RESTAddress:            "127.0.0.1:8080",
 		QUICAddress:            ":4433",
 		KeysDirectory:          keysDir,
 		ChunkSize:              1048576, // 1 MiB

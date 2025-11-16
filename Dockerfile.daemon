@@ -1,0 +1,10 @@
+# Dockerfile for QuantaraX daemon
+FROM golang:1.23 AS build
+WORKDIR /src
+COPY . .
+RUN cd backend/daemon && go build -o /out/daemon .
+
+FROM gcr.io/distroless/base-debian12
+COPY --from=build /out/daemon /usr/local/bin/daemon
+EXPOSE 8080 4433
+ENTRYPOINT ["/usr/local/bin/daemon"]

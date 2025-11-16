@@ -16,7 +16,7 @@ type PriorityScheduler struct {
 
 func NewPriorityScheduler(conn *quic.Conn) *PriorityScheduler {
 	qs := &PriorityScheduler{
-		conn:   conn,
+		conn: conn,
 		queues: map[PriorityClass]chan func(context.Context){
 			PriorityP0: make(chan func(context.Context), 128),
 			PriorityP1: make(chan func(context.Context), 128),
@@ -31,17 +31,29 @@ func NewPriorityScheduler(conn *quic.Conn) *PriorityScheduler {
 		for {
 			select {
 			case f, ok := <-qs.queues[PriorityP0]:
-				if !ok { return }
-				if f != nil { f(ctx) }
+				if !ok {
+					return
+				}
+				if f != nil {
+					f(ctx)
+				}
 			default:
 				select {
 				case f, ok := <-qs.queues[PriorityP1]:
-					if !ok { return }
-					if f != nil { f(ctx) }
+					if !ok {
+						return
+					}
+					if f != nil {
+						f(ctx)
+					}
 				default:
 					f, ok := <-qs.queues[PriorityP2]
-					if !ok { return }
-					if f != nil { f(ctx) }
+					if !ok {
+						return
+					}
+					if f != nil {
+						f(ctx)
+					}
 				}
 			}
 		}

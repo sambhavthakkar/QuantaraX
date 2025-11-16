@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/services.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import '../../../core/network/api_client.dart';
 import 'package:gradient_borders/box_borders/gradient_box_border.dart';
 import 'package:simple_gradient_text/simple_gradient_text.dart';
 import '../../../config/app_theme.dart';
+import '../../../core/services/transfer_store.dart';
 
 class Sidebar extends StatefulWidget {
   final bool isMobile;
@@ -14,6 +19,100 @@ class Sidebar extends StatefulWidget {
 }
 
 class _SidebarState extends State<Sidebar> {
+  final _api = ApiClient();
+
+  Future<void> _handleGenerateToken() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(allowMultiple: false);
+      if (result == null || result.files.isEmpty) return;
+      final file = result.files.first;
+      final res = await _api.createTransfer(file.path!, 'peer-local');
+      try {
+        final sessionId = res['session_id']?.toString();
+        final manifest = res['manifest'] as Map?;
+        if (sessionId != null) {
+          final fileName = manifest?['file_name']?.toString();
+          final fileSize = (manifest?['file_size'] as num?)?.toInt();
+          final totalChunks = (manifest?['total_chunks'] as num?)?.toInt();
+          TransferStore.instance.track(sessionId, fileName: fileName, fileSize: fileSize, totalChunks: totalChunks);
+          // Track in TransferStore for Monitoring/Chat
+          // ignore: avoid_print
+          // print('Tracking session $sessionId');
+          // Import locally to avoid global refactor
+          // ignore: invalid_use_of_internal_member
+          // ignore: library_prefixes
+          // We'll import at top-level properly below
+        }
+      } catch (_) {}
+      if (!mounted) return;
+      await showDialog(context: context, builder: (_) => AlertDialog(
+        title: const Text('Transfer Token'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            QrImageView(data: (res['qr_code_data'] ?? res['transfer_token']).toString(), size: 200),
+            const SizedBox(height: 12),
+            SelectableText((res['transfer_token']).toString()),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: ()=>Navigator.pop(context), child: const Text('Close')),
+          TextButton(onPressed: (){ Clipboard.setData(ClipboardData(text: (res['transfer_token']).toString())); Navigator.pop(context); }, child: const Text('Copy')),
+        ],
+      ));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Token generated')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Generate failed: $e')));
+    }
+  }
+
+  Future<void> _handleAcceptToken() async {
+    try {
+      String token = (await Clipboard.getData('text/plain'))?.text ?? '';
+      if (token.isEmpty) {
+        token = await _prompt(context, title: 'Enter Transfer Token');
+        if (token.isEmpty) return;
+      }
+      final dirPath = await FilePicker.platform.getDirectoryPath();
+      if (dirPath == null) return;
+      final defaultName = 'received.bin';
+      final name = await _prompt(context, title: 'Output filename', initial: defaultName, hintText: 'e.g., $defaultName');
+      if (name.isEmpty) return;
+      final outPath = '$dirPath/$name';
+      final acc = await _api.acceptTransfer(token, outPath);
+      try {
+        final sessionId = acc['session_id']?.toString();
+        final manifest = acc['manifest'] as Map?;
+        if (sessionId != null) {
+          final fileName = manifest?['file_name']?.toString();
+          final fileSize = (manifest?['file_size'] as num?)?.toInt();
+          final totalChunks = (manifest?['total_chunks'] as num?)?.toInt();
+          TransferStore.instance.track(sessionId, fileName: fileName, fileSize: fileSize, totalChunks: totalChunks);
+        }
+      } catch (_) {}
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Transfer accepted. Check Monitoring for progress.')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Accept failed: $e')));
+    }
+  }
+
+  Future<String> _prompt(BuildContext context, {required String title, String? initial, String? hintText}) async {
+    final c = TextEditingController(text: initial ?? '');
+    String value = initial ?? '';
+    await showDialog(context: context, builder: (_) => AlertDialog(
+      title: Text(title),
+      content: TextField(controller: c, decoration: InputDecoration(hintText: hintText)),
+      actions: [
+        TextButton(onPressed: ()=>Navigator.pop(context), child: const Text('Cancel')),
+        ElevatedButton(onPressed: (){ value = c.text; Navigator.pop(context); }, child: const Text('OK')),
+      ],
+    ));
+    return value;
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -134,7 +233,7 @@ class _SidebarState extends State<Sidebar> {
                         ),
                         variant: 'gradient',
                         onPressed: () {
-                          // TODO: Implement QR scanning flow
+                          _handleAcceptToken();
                         },
                       ),
                     ),
@@ -151,7 +250,7 @@ class _SidebarState extends State<Sidebar> {
                         ),
                         variant: 'gradient',
                         onPressed: () {
-                          // TODO: Implement token generation flow
+                          _handleGenerateToken();
                         },
                       ),
                     ),

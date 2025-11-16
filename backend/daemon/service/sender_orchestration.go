@@ -2,9 +2,9 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
-	"encoding/json"
 
 	"github.com/google/uuid"
 	"github.com/quantarax/backend/daemon/transport"
@@ -18,10 +18,14 @@ func SendWithOrchestration(ctx context.Context, conn *transport.QUICConnection, 
 	profile := transport.ProfileForDomain(manifest.Domain, manifest)
 	// onFailed enqueues DTN retry if configured
 	onFailed := func(idx int64, err error) {
-		if manifest.DTNProfile == nil { return }
+		if manifest.DTNProfile == nil {
+			return
+		}
 		q := GetDTNQueue()
-		if q == nil { return }
-		expire := time.Now().Add(time.Duration(manifest.DTNProfile.TTLSeconds)*time.Second).Unix()
+		if q == nil {
+			return
+		}
+		expire := time.Now().Add(time.Duration(manifest.DTNProfile.TTLSeconds) * time.Second).Unix()
 		_ = q.Enqueue(&DTNItem{SessionID: manifest.SessionID, ChunkIdx: idx, Priority: 1, ExpireAt: expire})
 	}
 	orch := transport.NewOrchestratedSender(conn, profile, sessionKeys, sessionID, filePath, int64(manifest.ChunkSize), onChunkSent, onFailed)
@@ -36,10 +40,12 @@ func SendWithOrchestration(ctx context.Context, conn *transport.QUICConnection, 
 			_ = conn.GetControlStream().SendFECUpdate(&transport.FECUpdateMessage{SessionID: manifest.SessionID, K: k, R: r, Reason: reason, Timestamp: time.Now().Unix()})
 		}
 	})
-	go func(){
+	go func() {
 		Ticker := time.NewTicker(5 * time.Second)
 		defer Ticker.Stop()
-		for range Ticker.C { fecCtl.Tick() }
+		for range Ticker.C {
+			fecCtl.Tick()
+		}
 	}()
 	// Preflight CAS negotiation: ask receiver what chunks it has in CAS
 	have := map[int64]bool{}
@@ -51,7 +57,9 @@ func SendWithOrchestration(ctx context.Context, conn *transport.QUICConnection, 
 			if json.Unmarshal(data, &resp) == nil {
 				var decomp transport.ChunkRangeCompressor
 				idxs, _ := decomp.Decompress(resp.HaveRanges)
-				for _, id := range idxs { have[id] = true }
+				for _, id := range idxs {
+					have[id] = true
+				}
 			}
 		}
 	}
@@ -60,11 +68,15 @@ func SendWithOrchestration(ctx context.Context, conn *transport.QUICConnection, 
 		fmt.Println("control: preflight complete")
 	})
 	// Spawn a control listener to handle NACK and retransmit missing chunks
-	go func(){
+	go func() {
 		for {
-			if conn.GetControlStream() == nil { return }
+			if conn.GetControlStream() == nil {
+				return
+			}
 			t, data, err := conn.GetControlStream().ReceiveAny()
-			if err != nil { return }
+			if err != nil {
+				return
+			}
 			if t == transport.MessageTypeNack {
 				var nack transport.NackMessage
 				if json.Unmarshal(data, &nack) == nil {
@@ -79,12 +91,16 @@ func SendWithOrchestration(ctx context.Context, conn *transport.QUICConnection, 
 	}()
 	// Preview/header scheduling example (first 3 chunks)
 	for i := int64(0); i < 3 && i < int64(manifest.ChunkCount); i++ {
-		if have[i] { continue }
+		if have[i] {
+			continue
+		}
 		_ = orch.EnqueuePreview(i)
 	}
 	// Bulk scheduling example (rest chunks)
 	for i := int64(3); i < int64(manifest.ChunkCount); i++ {
-		if have[i] { continue }
+		if have[i] {
+			continue
+		}
 		_ = orch.EnqueueBulk(i)
 	}
 	return nil

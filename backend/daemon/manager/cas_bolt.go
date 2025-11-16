@@ -1,13 +1,13 @@
 package manager
 
 import (
-	"path/filepath"
-	"time"
 	"encoding/binary"
 	"github.com/boltdb/bolt"
+	"path/filepath"
+	"time"
 )
 
-type BoltCAS struct { db *bolt.DB }
+type BoltCAS struct{ db *bolt.DB }
 
 // GCRule defines a naive retention rule: delete entries older than MaxAge or when limit exceeded.
 // For this simple key-only CAS, we drop keys older than MaxAge.
@@ -17,9 +17,14 @@ var bucketCAS = []byte("cas")
 
 func OpenBoltCAS(path string) (*BoltCAS, error) {
 	db, err := bolt.Open(filepath.Clean(path), 0600, &bolt.Options{Timeout: 1 * time.Second})
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	err = db.Update(func(tx *bolt.Tx) error { _, e := tx.CreateBucketIfNotExists(bucketCAS); return e })
-	if err != nil { db.Close(); return nil, err }
+	if err != nil {
+		db.Close()
+		return nil, err
+	}
 	return &BoltCAS{db: db}, nil
 }
 
@@ -29,7 +34,9 @@ func (b *BoltCAS) HasChunk(hash string) bool {
 	var ok bool
 	_ = b.db.View(func(tx *bolt.Tx) error {
 		bk := tx.Bucket(bucketCAS)
-		if bk == nil { return nil }
+		if bk == nil {
+			return nil
+		}
 		v := bk.Get([]byte(hash))
 		ok = v != nil
 		return nil
@@ -41,7 +48,9 @@ func (b *BoltCAS) PutChunk(hash string, length int) error {
 	// Store with a simple timestamp value for GC
 	return b.db.Update(func(tx *bolt.Tx) error {
 		bk := tx.Bucket(bucketCAS)
-		if bk == nil { return bolt.ErrBucketNotFound }
+		if bk == nil {
+			return bolt.ErrBucketNotFound
+		}
 		// value is 8-byte unix seconds
 		buf := make([]byte, 8)
 		binary.BigEndian.PutUint64(buf, uint64(time.Now().Unix()))
@@ -55,13 +64,17 @@ func (b *BoltCAS) GC(maxAge time.Duration) (int, error) {
 	removed := 0
 	err := b.db.Update(func(tx *bolt.Tx) error {
 		bk := tx.Bucket(bucketCAS)
-		if bk == nil { return bolt.ErrBucketNotFound }
+		if bk == nil {
+			return bolt.ErrBucketNotFound
+		}
 		c := bk.Cursor()
 		for k, v := c.First(); k != nil; k, v = c.Next() {
 			if len(v) >= 8 {
 				ts := int64(binary.BigEndian.Uint64(v))
 				if ts < cutoff {
-					if err := c.Delete(); err != nil { return err }
+					if err := c.Delete(); err != nil {
+						return err
+					}
 					removed++
 				}
 			}

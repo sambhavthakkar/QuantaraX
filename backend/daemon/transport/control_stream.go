@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	
+
 	"github.com/quic-go/quic-go"
 )
 
@@ -96,10 +96,10 @@ type ChunkHaveRequest struct {
 
 // ChunkHaveResponse contains a range-compressed bitmap of chunks present.
 type ChunkHaveResponse struct {
-	SessionID   string
-	HaveRanges  string
-	ChunkCount  int
-	Timestamp   int64
+	SessionID  string
+	HaveRanges string
+	ChunkCount int
+	Timestamp  int64
 }
 
 // ControlStream manages the control protocol stream
@@ -118,14 +118,14 @@ func NewControlStream(stream *quic.Stream) *ControlStream {
 func (cs *ControlStream) SendSignedManifest(manifestJSON []byte, privateKey ed25519.PrivateKey) error {
 	signature := ed25519.Sign(privateKey, manifestJSON)
 	publicKey := privateKey.Public().(ed25519.PublicKey)
-	
+
 	sm := &SignedManifest{
 		ManifestJSON:    manifestJSON,
 		Signature:       signature,
 		PublicKey:       publicKey,
 		ProtocolVersion: ProtocolVersion,
 	}
-	
+
 	return cs.sendControlMessage(MessageTypeManifest, sm)
 }
 
@@ -135,24 +135,24 @@ func (cs *ControlStream) ReceiveSignedManifest() (*SignedManifest, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if msgType != MessageTypeManifest {
 		return nil, fmt.Errorf("expected manifest message, got %d", msgType)
 	}
-	
+
 	var sm SignedManifest
 	if err := json.Unmarshal(data, &sm); err != nil {
 		return nil, err
 	}
-	
+
 	if sm.ProtocolVersion != ProtocolVersion {
 		return nil, ErrInvalidProtocolVersion
 	}
-	
+
 	if !ed25519.Verify(sm.PublicKey, sm.ManifestJSON, sm.Signature) {
 		return nil, ErrInvalidSignature
 	}
-	
+
 	return &sm, nil
 }
 
@@ -167,16 +167,16 @@ func (cs *ControlStream) ReceiveAck() (*AckMessage, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if msgType != MessageTypeAck {
 		return nil, fmt.Errorf("expected ack message, got %d", msgType)
 	}
-	
+
 	var ack AckMessage
 	if err := json.Unmarshal(data, &ack); err != nil {
 		return nil, err
 	}
-	
+
 	return &ack, nil
 }
 
@@ -191,16 +191,16 @@ func (cs *ControlStream) ReceiveNack() (*NackMessage, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if msgType != MessageTypeNack {
 		return nil, fmt.Errorf("expected nack message, got %d", msgType)
 	}
-	
+
 	var nack NackMessage
 	if err := json.Unmarshal(data, &nack); err != nil {
 		return nil, err
 	}
-	
+
 	return &nack, nil
 }
 
@@ -215,16 +215,16 @@ func (cs *ControlStream) ReceiveStatus() (*StatusMessage, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if msgType != MessageTypeStatus {
 		return nil, fmt.Errorf("expected status message, got %d", msgType)
 	}
-	
+
 	var status StatusMessage
 	if err := json.Unmarshal(data, &status); err != nil {
 		return nil, err
 	}
-	
+
 	return &status, nil
 }
 
@@ -241,10 +241,16 @@ func (cs *ControlStream) SendFECUpdate(msg *FECUpdateMessage) error {
 // ReceiveFECUpdate receives FEC update
 func (cs *ControlStream) ReceiveFECUpdate() (*FECUpdateMessage, error) {
 	msgType, data, err := cs.receiveControlMessage()
-	if err != nil { return nil, err }
-	if msgType != MessageTypeFECUpdate { return nil, fmt.Errorf("expected FEC_UPDATE, got %d", msgType) }
+	if err != nil {
+		return nil, err
+	}
+	if msgType != MessageTypeFECUpdate {
+		return nil, fmt.Errorf("expected FEC_UPDATE, got %d", msgType)
+	}
 	var m FECUpdateMessage
-	if err := json.Unmarshal(data, &m); err != nil { return nil, err }
+	if err := json.Unmarshal(data, &m); err != nil {
+		return nil, err
+	}
 	return &m, nil
 }
 
@@ -256,10 +262,16 @@ func (cs *ControlStream) SendChunkHaveRequest(req *ChunkHaveRequest) error {
 // ReceiveChunkHaveRequest receives a request
 func (cs *ControlStream) ReceiveChunkHaveRequest() (*ChunkHaveRequest, error) {
 	msgType, data, err := cs.receiveControlMessage()
-	if err != nil { return nil, err }
-	if msgType != MessageTypeChunkHaveRequest { return nil, fmt.Errorf("expected CHUNK_HAVE_REQUEST, got %d", msgType) }
+	if err != nil {
+		return nil, err
+	}
+	if msgType != MessageTypeChunkHaveRequest {
+		return nil, fmt.Errorf("expected CHUNK_HAVE_REQUEST, got %d", msgType)
+	}
 	var req ChunkHaveRequest
-	if err := json.Unmarshal(data, &req); err != nil { return nil, err }
+	if err := json.Unmarshal(data, &req); err != nil {
+		return nil, err
+	}
 	return &req, nil
 }
 
@@ -271,10 +283,16 @@ func (cs *ControlStream) SendChunkHaveResponse(resp *ChunkHaveResponse) error {
 // ReceiveChunkHaveResponse receives CAS bitmap response
 func (cs *ControlStream) ReceiveChunkHaveResponse() (*ChunkHaveResponse, error) {
 	msgType, data, err := cs.receiveControlMessage()
-	if err != nil { return nil, err }
-	if msgType != MessageTypeChunkHaveResponse { return nil, fmt.Errorf("expected CHUNK_HAVE_RESPONSE, got %d", msgType) }
+	if err != nil {
+		return nil, err
+	}
+	if msgType != MessageTypeChunkHaveResponse {
+		return nil, fmt.Errorf("expected CHUNK_HAVE_RESPONSE, got %d", msgType)
+	}
 	var resp ChunkHaveResponse
-	if err := json.Unmarshal(data, &resp); err != nil { return nil, err }
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, err
+	}
 	return &resp, nil
 }
 
@@ -284,16 +302,16 @@ func (cs *ControlStream) ReceiveVerification() (*VerificationMessage, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if msgType != MessageTypeVerification {
 		return nil, fmt.Errorf("expected verification message, got %d", msgType)
 	}
-	
+
 	var verification VerificationMessage
 	if err := json.Unmarshal(data, &verification); err != nil {
 		return nil, err
 	}
-	
+
 	return &verification, nil
 }
 
@@ -303,7 +321,7 @@ func (cs *ControlStream) sendControlMessage(msgType ControlMessageType, payload 
 	if err != nil {
 		return err
 	}
-	
+
 	if err := binary.Write(cs.stream, binary.BigEndian, msgType); err != nil {
 		return err
 	}
@@ -338,7 +356,7 @@ func (cs *ControlStream) receiveControlMessage() (ControlMessageType, []byte, er
 	if _, err := io.ReadFull(cs.stream, data); err != nil {
 		return 0, nil, err
 	}
-	
+
 	return msgType, data, nil
 }
 
@@ -355,14 +373,14 @@ func (c *ChunkRangeCompressor) Compress(chunks []int64) string {
 	if len(chunks) == 0 {
 		return ""
 	}
-	
+
 	var buf bytes.Buffer
 	start := chunks[0]
 	prev := chunks[0]
-	
+
 	for i := 1; i < len(chunks); i++ {
 		curr := chunks[i]
-		
+
 		if curr == prev+1 {
 			prev = curr
 		} else {
@@ -375,13 +393,13 @@ func (c *ChunkRangeCompressor) Compress(chunks []int64) string {
 			prev = curr
 		}
 	}
-	
+
 	if start == prev {
 		fmt.Fprintf(&buf, "%d", start)
 	} else {
 		fmt.Fprintf(&buf, "%d-%d", start, prev)
 	}
-	
+
 	return buf.String()
 }
 
@@ -390,13 +408,13 @@ func (c *ChunkRangeCompressor) Decompress(rangeStr string) ([]int64, error) {
 	if rangeStr == "" {
 		return []int64{}, nil
 	}
-	
+
 	var chunks []int64
 	ranges := bytes.Split([]byte(rangeStr), []byte(","))
-	
+
 	for _, r := range ranges {
 		parts := bytes.Split(r, []byte("-"))
-		
+
 		if len(parts) == 1 {
 			var chunk int64
 			if _, err := fmt.Sscanf(string(parts[0]), "%d", &chunk); err != nil {
@@ -416,6 +434,6 @@ func (c *ChunkRangeCompressor) Decompress(rangeStr string) ([]int64, error) {
 			}
 		}
 	}
-	
+
 	return chunks, nil
 }

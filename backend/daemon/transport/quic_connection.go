@@ -3,7 +3,7 @@ package transport
 import (
 	"context"
 	"crypto/tls"
-	
+
 	"github.com/quic-go/quic-go"
 )
 
@@ -30,7 +30,7 @@ func (q *QUICConnection) OpenControlStream(ctx context.Context) (*ControlStream,
 	if err != nil {
 		return nil, err
 	}
-	
+
 	q.controlStream = NewControlStream(stream)
 	return q.controlStream, nil
 }
@@ -41,7 +41,7 @@ func (q *QUICConnection) AcceptControlStream(ctx context.Context) (*ControlStrea
 	if err != nil {
 		return nil, err
 	}
-	
+
 	q.controlStream = NewControlStream(stream)
 	return q.controlStream, nil
 }
@@ -75,30 +75,30 @@ func (q *QUICConnection) Close() error {
 // DialQUIC establishes a QUIC connection to a remote address
 func DialQUIC(ctx context.Context, addr string, tlsConfig *tls.Config) (*QUICConnection, error) {
 	conn, err := quic.DialAddr(ctx, addr, tlsConfig, &quic.Config{
-		KeepAlivePeriod:                 10 * 1e9, // 10s
-		MaxIdleTimeout:                  60 * 1e9,
-		InitialStreamReceiveWindow:      8 << 20,  // 8 MiB
-		InitialConnectionReceiveWindow:  128 << 20, // 128 MiB
+		KeepAlivePeriod:                10 * 1e9, // 10s
+		MaxIdleTimeout:                 60 * 1e9,
+		InitialStreamReceiveWindow:     8 << 20,   // 8 MiB
+		InitialConnectionReceiveWindow: 128 << 20, // 128 MiB
 	})
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return NewQUICConnection(conn), nil
 }
 
 // ListenQUIC starts a QUIC listener
 func ListenQUIC(addr string, tlsConfig *tls.Config) (*QUICListener, error) {
 	listener, err := quic.ListenAddr(addr, tlsConfig, &quic.Config{
-		KeepAlivePeriod:                 10 * 1e9,
-		MaxIdleTimeout:                  60 * 1e9,
-		InitialStreamReceiveWindow:      8 << 20,
-		InitialConnectionReceiveWindow:  128 << 20,
+		KeepAlivePeriod:                10 * 1e9,
+		MaxIdleTimeout:                 60 * 1e9,
+		InitialStreamReceiveWindow:     8 << 20,
+		InitialConnectionReceiveWindow: 128 << 20,
 	})
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return &QUICListener{listener: listener}, nil
 }
 
@@ -113,7 +113,7 @@ func (l *QUICListener) Accept(ctx context.Context) (*QUICConnection, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return NewQUICConnection(conn), nil
 }
 

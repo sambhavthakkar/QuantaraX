@@ -1,0 +1,9 @@
+FROM golang:1.23 AS build
+WORKDIR /src
+COPY . .
+RUN cd backend/relay && go build -o /out/relay .
+
+FROM gcr.io/distroless/base-debian12
+COPY --from=build /out/relay /usr/local/bin/relay
+EXPOSE 4433 8083
+ENTRYPOINT ["/usr/local/bin/relay", "--listen", ":4433"]

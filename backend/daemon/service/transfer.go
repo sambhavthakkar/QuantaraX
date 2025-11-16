@@ -8,14 +8,14 @@ import (
 	"os"
 	"path/filepath"
 	"time"
-	
+
 	"github.com/google/uuid"
-"github.com/quantarax/backend/internal/introspect"
 	"github.com/quantarax/backend/daemon/manager"
 	"github.com/quantarax/backend/internal/chunker"
 	"github.com/quantarax/backend/internal/crypto"
-	"github.com/quantarax/backend/internal/media"
 	"github.com/quantarax/backend/internal/engineering"
+	"github.com/quantarax/backend/internal/introspect"
+	"github.com/quantarax/backend/internal/media"
 	"strings"
 )
 
@@ -26,12 +26,12 @@ var (
 
 // TransferService manages file transfer operations
 type TransferService struct {
-	store         *manager.SessionStore
+	store          *manager.SessionStore
 	eventPublisher *EventPublisher
-	keysDir       string
-	chunkSize     int64
-	privateKey    ed25519.PrivateKey
-	publicKey     ed25519.PublicKey
+	keysDir        string
+	chunkSize      int64
+	privateKey     ed25519.PrivateKey
+	publicKey      ed25519.PublicKey
 }
 
 // NewTransferService creates a new transfer service
@@ -46,7 +46,7 @@ func NewTransferService(
 	if err != nil {
 		return nil, err
 	}
-	
+
 	ts := &TransferService{
 		store:          store,
 		eventPublisher: eventPublisher,
@@ -72,27 +72,37 @@ func (s *TransferService) CreateTransfer(
 	if err != nil {
 		return "", "", nil, err
 	}
-	
+
 	// Use override chunk size if provided
 	chunkSize := s.chunkSize
 	if chunkSizeOverride > 0 {
 		chunkSize = chunkSizeOverride
 	}
-	
+
 	// Auto domain detection and config mapping
 	decision := introspect.Decide(filePath)
 	chunkSizeToUse := int(chunkSize)
 	switch decision.Domain {
 	case introspect.DomainMedical:
-		if chunkSizeToUse > 512*1024 { chunkSizeToUse = 512*1024 }
+		if chunkSizeToUse > 512*1024 {
+			chunkSizeToUse = 512 * 1024
+		}
 	case introspect.DomainMedia:
-		if chunkSizeToUse < 2*1024*1024 { chunkSizeToUse = 2*1024*1024 }
+		if chunkSizeToUse < 2*1024*1024 {
+			chunkSizeToUse = 2 * 1024 * 1024
+		}
 	case introspect.DomainEngineering:
-		if chunkSizeToUse > 256*1024 { chunkSizeToUse = 256*1024 }
+		if chunkSizeToUse > 256*1024 {
+			chunkSizeToUse = 256 * 1024
+		}
 	case introspect.DomainTelemetry:
-		if chunkSizeToUse < 512*1024 { chunkSizeToUse = 512*1024 }
+		if chunkSizeToUse < 512*1024 {
+			chunkSizeToUse = 512 * 1024
+		}
 	case introspect.DomainDisaster, introspect.DomainRural:
-		if chunkSizeToUse > 512*1024 { chunkSizeToUse = 512*1024 }
+		if chunkSizeToUse > 512*1024 {
+			chunkSizeToUse = 512 * 1024
+		}
 	}
 
 	// Generate manifest
@@ -113,7 +123,7 @@ func (s *TransferService) CreateTransfer(
 	switch decision.Domain {
 	case introspect.DomainMedical:
 		np.RTTMsAvg, np.LossPct, np.Bandwidth = 120, 0.5, 20
-		manifest.FEC = &chunker.FECProfile{K:16, R:8}
+		manifest.FEC = &chunker.FECProfile{K: 16, R: 8}
 		manifest.Policies = &chunker.TransferPolicies{}
 		manifest.Policies.Encryption.E2E = true
 		manifest.Policies.Encryption.AtRest = true
@@ -121,30 +131,30 @@ func (s *TransferService) CreateTransfer(
 		manifest.MedicalProfile = &chunker.MedicalProfile{StrictMode: true, E2E: true, AtRest: true}
 	case introspect.DomainMedia:
 		np.RTTMsAvg, np.LossPct, np.Bandwidth = 60, 1.0, 300
-		manifest.FEC = &chunker.FECProfile{K:50, R:6}
+		manifest.FEC = &chunker.FECProfile{K: 50, R: 6}
 		manifest.MediaProfile = &chunker.MediaProfile{}
 	case introspect.DomainEngineering:
 		np.RTTMsAvg, np.LossPct, np.Bandwidth = 80, 2.0, 80
-		manifest.FEC = &chunker.FECProfile{K:32, R:4}
+		manifest.FEC = &chunker.FECProfile{K: 32, R: 4}
 		manifest.EngineeringProfile = &chunker.EngineeringProfile{}
 	case introspect.DomainTelemetry:
 		np.RTTMsAvg, np.LossPct, np.Bandwidth = 40, 1.0, 150
-		manifest.FEC = &chunker.FECProfile{K:50, R:8}
+		manifest.FEC = &chunker.FECProfile{K: 50, R: 8}
 		manifest.TelemetryProfile = &chunker.TelemetryProfile{Streams: []chunker.TelemetryStream{{Name: "telemetry", Priority: 0, SampleRate: 1000, Channels: 8}}}
 	case introspect.DomainDisaster:
 		np.RTTMsAvg, np.LossPct, np.Bandwidth = 600, 20.0, 2
-		manifest.FEC = &chunker.FECProfile{K:20, R:12}
+		manifest.FEC = &chunker.FECProfile{K: 20, R: 12}
 		manifest.DTNProfile = &chunker.DTNProfile{TTLSeconds: 86400, Custody: true, MaxRetries: 10, BackoffMs: 60000}
 	case introspect.DomainRural:
 		np.RTTMsAvg, np.LossPct, np.Bandwidth = 300, 10.0, 5
-		manifest.FEC = &chunker.FECProfile{K:20, R:10}
+		manifest.FEC = &chunker.FECProfile{K: 20, R: 10}
 		manifest.DTNProfile = &chunker.DTNProfile{TTLSeconds: 43200, Custody: true, MaxRetries: 8, BackoffMs: 30000}
 	}
 	manifest.Network = np
-	
+
 	// Generate session ID
 	sessionID = uuid.New().String()
-	
+
 	// Create session
 	session := manager.NewSession(
 		sessionID,
@@ -155,18 +165,18 @@ func (s *TransferService) CreateTransfer(
 		manager.DirectionSend,
 	)
 	session.Metadata = metadata
-	
+
 	// Add to store
 	if err := s.store.Add(session); err != nil {
 		return "", "", nil, err
 	}
-	
+
 	// Generate transfer token
 	token, err = s.generateToken(sessionID, manifest)
 	if err != nil {
 		return "", "", nil, err
 	}
-	
+
 	// Domain-specific manifest enrichment (previews, deps, medical metadata)
 	switch decision.Domain {
 	case introspect.DomainMedia:
@@ -175,7 +185,9 @@ func (s *TransferService) CreateTransfer(
 		if err := media.GenerateThumbnail(filePath, thumbPath, 512, 512); err == nil {
 			// compute hash
 			hash := crypto.ComputeFileHashB64(thumbPath)
-			if manifest.MediaProfile == nil { manifest.MediaProfile = &chunker.MediaProfile{} }
+			if manifest.MediaProfile == nil {
+				manifest.MediaProfile = &chunker.MediaProfile{}
+			}
 			manifest.MediaProfile.PreviewHash = hash
 			// Detect moov position if mp4/mov
 			if ext := strings.ToLower(filepath.Ext(filePath)); ext == ".mp4" || ext == ".mov" {
@@ -184,20 +196,24 @@ func (s *TransferService) CreateTransfer(
 		}
 	case introspect.DomainEngineering:
 		deps, _ := engineering.DiscoverDependencies(filepath.Dir(filePath))
-		if manifest.EngineeringProfile == nil { manifest.EngineeringProfile = &chunker.EngineeringProfile{} }
+		if manifest.EngineeringProfile == nil {
+			manifest.EngineeringProfile = &chunker.EngineeringProfile{}
+		}
 		for _, d := range deps {
 			manifest.EngineeringProfile.Dependencies = append(manifest.EngineeringProfile.Dependencies, chunker.Dependency{Node: filePath, DependsOn: []string{d}})
 		}
 		// Compute simple block map and record a delta checkpoint for sender planning
 		if blocks, err := engineering.ComputeDeltaBlocks(filePath, manifest.ChunkSize); err == nil {
 			manifest.EngineeringProfile.DeltaCheckpoints = append(manifest.EngineeringProfile.DeltaCheckpoints, chunker.DeltaCheckpoint{
-				Path: filePath,
-				BlockSize: manifest.ChunkSize,
+				Path:       filePath,
+				BlockSize:  manifest.ChunkSize,
 				BlockCount: len(blocks),
 			})
 		}
 	case introspect.DomainMedical:
-		if manifest.MedicalProfile == nil { manifest.MedicalProfile = &chunker.MedicalProfile{} }
+		if manifest.MedicalProfile == nil {
+			manifest.MedicalProfile = &chunker.MedicalProfile{}
+		}
 		manifest.MedicalProfile.StrictMode = true
 		manifest.MedicalProfile.E2E = true
 		manifest.MedicalProfile.AtRest = true
@@ -206,7 +222,7 @@ func (s *TransferService) CreateTransfer(
 
 	// Publish started event
 	s.eventPublisher.PublishStarted(sessionID, filepath.Base(filePath), fileInfo.Size())
-	
+
 	return sessionID, token, manifest, nil
 }
 
@@ -221,7 +237,7 @@ func (s *TransferService) AcceptTransfer(
 	if err != nil {
 		return "", nil, err
 	}
-	
+
 	// Enforce medical strict gating
 	if manifest.Domain == "medical" {
 		if manifest.Policies == nil || !manifest.Policies.Encryption.E2E || !manifest.Policies.Encryption.AtRest {
@@ -238,12 +254,12 @@ func (s *TransferService) AcceptTransfer(
 		int64(manifest.ChunkSize),
 		manager.DirectionReceive,
 	)
-	
+
 	// Add to store
 	if err := s.store.Add(session); err != nil {
 		return "", nil, err
 	}
-	
+
 	return sessionID, manifest, nil
 }
 
@@ -253,7 +269,7 @@ func (s *TransferService) GetTransferStatus(sessionID string) (*TransferStatus, 
 	if err != nil {
 		return nil, ErrSessionNotFound
 	}
-	
+
 	status := &TransferStatus{
 		State:                  session.State,
 		ProgressPercent:        session.GetProgressPercent(),
@@ -264,7 +280,7 @@ func (s *TransferService) GetTransferStatus(sessionID string) (*TransferStatus, 
 		EstimatedTimeRemaining: session.GetEstimatedTimeRemaining(),
 		ErrorMessage:           session.ErrorMessage,
 	}
-	
+
 	return status, nil
 }
 
@@ -287,12 +303,12 @@ func (s *TransferService) generateToken(sessionID string, manifest *chunker.Mani
 		"manifest":   manifest,
 		"created_at": time.Now().Unix(),
 	}
-	
+
 	data, err := json.Marshal(tokenData)
 	if err != nil {
 		return "", err
 	}
-	
+
 	token := base64.URLEncoding.EncodeToString(data)
 	return "quantarax://xfer?t=" + token, nil
 }
@@ -304,31 +320,31 @@ func (s *TransferService) parseToken(token string) (string, *chunker.Manifest, e
 	if len(token) < len(prefix) {
 		return "", nil, ErrInvalidToken
 	}
-	
+
 	encoded := token[len(prefix):]
 	data, err := base64.URLEncoding.DecodeString(encoded)
 	if err != nil {
 		return "", nil, ErrInvalidToken
 	}
-	
+
 	var tokenData map[string]interface{}
 	if err := json.Unmarshal(data, &tokenData); err != nil {
 		return "", nil, ErrInvalidToken
 	}
-	
+
 	sessionID := tokenData["session_id"].(string)
-	
+
 	// Parse manifest
 	manifestData, err := json.Marshal(tokenData["manifest"])
 	if err != nil {
 		return "", nil, err
 	}
-	
+
 	var manifest chunker.Manifest
 	if err := json.Unmarshal(manifestData, &manifest); err != nil {
 		return "", nil, err
 	}
-	
+
 	return sessionID, &manifest, nil
 }
 
@@ -352,6 +368,6 @@ func loadIdentityKeys(keysDir string) (ed25519.PrivateKey, ed25519.PublicKey, er
 	if err != nil {
 		return nil, nil, err
 	}
-	
+
 	return privKey, pubKey, nil
 }

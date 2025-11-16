@@ -2,10 +2,10 @@ package main
 
 import (
 	"context"
-	"github.com/google/uuid"
-	"github.com/quantarax/backend/internal/crypto"
-	"github.com/quantarax/backend/internal/chunker"
 	"encoding/json"
+	"github.com/google/uuid"
+	"github.com/quantarax/backend/internal/chunker"
+	"github.com/quantarax/backend/internal/crypto"
 	"log"
 	"net/http"
 	"net/http/pprof"
@@ -13,7 +13,8 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
-	
+
+	"github.com/quantarax/backend/daemon/api/server"
 	"github.com/quantarax/backend/daemon/config"
 	"github.com/quantarax/backend/daemon/manager"
 	"github.com/quantarax/backend/daemon/service"
@@ -35,29 +36,31 @@ func main() {
 	metrics := observability.NewMetrics()
 	healthChecker := observability.NewHealthChecker("1.0.0")
 	// Init tracing if configured
-	if shutdown, err := observability.InitTracing(context.Background(), "quantarax-daemon"); err == nil { defer shutdown(context.Background()) }
-	
+	if shutdown, err := observability.InitTracing(context.Background(), "quantarax-daemon"); err == nil {
+		defer shutdown(context.Background())
+	}
+
 	logger.Info("QuantaraX Daemon starting...")
-	
+
 	// Load configuration
 	cfg, err := config.LoadConfig("")
 	if err != nil {
 		logger.Fatal(err, "Failed to load config")
 	}
-	
+
 	logger.Info("Configuration loaded")
 	log.Printf("  QUIC Address: %s", cfg.QUICAddress)
 	log.Printf("  Chunk Size: %d bytes", cfg.ChunkSize)
 	log.Printf("  Worker Count: %d", cfg.WorkerCount)
-	
+
 	// Initialize session store
 	sessionStore := manager.NewSessionStore()
 	logger.Info("Session store initialized")
-	
+
 	// Initialize event publisher
 	eventPublisher := service.NewEventPublisher(cfg.EventBufferSize)
 	log.Printf("Event publisher initialized (buffer size: %d)", cfg.EventBufferSize)
-	
+
 	// Initialize transfer service
 	transferService, err := service.NewTransferService(
 		sessionStore,
@@ -69,51 +72,54 @@ func main() {
 		logger.Fatal(err, "Failed to initialize transfer service")
 	}
 	logger.Info("Transfer service initialized")
-	
+
 	// Register health checks
 	healthChecker.RegisterCheck("quic_listener", observability.QUICListenerCheck(cfg.QUICAddress))
 	healthChecker.RegisterCheck("keystore", observability.KeystoreCheck(true))
 	healthChecker.RegisterCheck("database", observability.DatabaseCheck("./data/quantarax.db"))
-	
+
 	// Generate self-signed TLS certificate for QUIC
 	certPEM, keyPEM, err := quicutil.GenerateSelfSignedCert()
 	if err != nil {
 		logger.Fatal(err, "Failed to generate TLS certificate")
 	}
 	logger.Info("Generated self-signed TLS certificate for QUIC")
-	
+
 	tlsConfig, err := quicutil.MakeTLSConfig(certPEM, keyPEM)
 	if err != nil {
 		logger.Fatal(err, "Failed to create TLS config")
 	}
-	
+
 	// Start QUIC listener
 	quicListener, err := transport.ListenQUIC(cfg.QUICAddress, tlsConfig)
 	if err != nil {
 		logger.Fatal(err, "Failed to start QUIC listener")
 	}
 	defer quicListener.Close()
-	
+
 	logger.Info("QUIC listener started on " + cfg.QUICAddress)
-	
+
 	// Start metrics and health HTTP server
-go startObservabilityServer(metrics, healthChecker, logger) // exposes /metrics, /health, /debug/pprof
-	
+	go startObservabilityServer(metrics, healthChecker, logger) // exposes /metrics, /health, /debug/pprof
+
 	// Start accepting QUIC connections in background
-ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 	// Rate limiter: limit new connections per second
 	tb := ratelimit.NewTokenBucket(50, 100) // 50 conn/s, burst 100
 	defer cancel()
-	
-go func() { // connection accept loop (rate-limited)
+
+	go func() { // connection accept loop (rate-limited)
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			default:
-// rate limit connection accepts
-			if !tb.Allow(1) { time.Sleep(10 * time.Millisecond); continue }
-			conn, err := quicListener.Accept(ctx)
+				// rate limit connection accepts
+				if !tb.Allow(1) {
+					time.Sleep(10 * time.Millisecond)
+					continue
+				}
+				conn, err := quicListener.Accept(ctx)
 				if err != nil {
 					if ctx.Err() != nil {
 						return
@@ -122,31 +128,40 @@ go func() { // connection accept loop (rate-limited)
 					metrics.RecordQUICConnection(false)
 					continue
 				}
-				
+
 				logger.ConnectionEstablished(conn.GetConnection().RemoteAddr().String(), "conn-id")
 				metrics.RecordQUICConnection(true)
-				
+
 				// Handle connection in goroutine
-				go handleConnection(ctx, conn, transferService, eventPublisher, cfg, logger, metrics)
+				go handleConnection(ctx, conn, transferService, eventPublisher, sessionStore, cfg, logger, metrics)
 			}
 		}
 	}()
-	
+
+	// Start API servers (gRPC + REST gateway + SSE)
+	grpcStop, restStop, err := server.StartAPIServers(context.Background(), cfg.GRPCAddress, cfg.RESTAddress, server.NewDaemonAPIServer(transferService, sessionStore, eventPublisher))
+	if err != nil {
+		logger.Fatal(err, "Failed to start API servers")
+	}
+	logger.Info("API servers started: gRPC on " + cfg.GRPCAddress + ", REST on " + cfg.RESTAddress)
+
 	logger.Info("QuantaraX Daemon running")
 	logger.Info("Press Ctrl+C to stop")
-	
+
 	// Wait for interrupt signal
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	<-sigChan
-	
+
 	logger.Info("Shutting down gracefully...")
 	cancel()
-	
+	grpcStop()
+	restStop()
+
 	// Cleanup old sessions
 	cleanedUp := sessionStore.CleanupOldSessions(24 * time.Hour)
 	log.Printf("Cleaned up %d old sessions", cleanedUp)
-	
+
 	logger.Info("Daemon stopped")
 }
 
@@ -173,33 +188,54 @@ func handleConnection(
 	conn *transport.QUICConnection,
 	transferService *service.TransferService,
 	eventPublisher *service.EventPublisher,
+	sessionStore *manager.SessionStore,
 	cfg *config.Config,
 	logger *observability.Logger,
 	metrics *observability.Metrics,
 ) {
 	defer conn.Close()
-	
+
 	// Accept control stream and receive signed manifest
 	ctrl, err := conn.AcceptControlStream(ctx)
-	if err != nil { logger.Error(err, "failed to accept control stream"); return }
+	if err != nil {
+		logger.Error(err, "failed to accept control stream")
+		return
+	}
 	signed, err := ctrl.ReceiveSignedManifest()
-	if err != nil { logger.Error(err, "failed to receive manifest"); return }
+	if err != nil {
+		logger.Error(err, "failed to receive manifest")
+		return
+	}
 	logger.Info("Manifest received")
 	// Parse manifest JSON
 	var manifest chunker.Manifest
 	if err := json.Unmarshal(signed.ManifestJSON, &manifest); err != nil {
-		logger.Error(err, "failed to parse manifest JSON"); return
+		logger.Error(err, "failed to parse manifest JSON")
+		return
 	}
 	// Build basic session keys placeholder (real key exchange omitted here)
 	var sk crypto.SessionKeys
 	// Orchestrate sending using domain profile
 	_ = transport.ProfileForDomain(manifest.Domain, &manifest)
-	// NOTE: file path unknown here; in a full pipeline, resolve mapped storage path
+	// Resolve file path (using file name as placeholder)
 	filePath := manifest.FileName
 	sessionUUID, _ := uuid.Parse(manifest.SessionID)
-	onChunkSent := func(idx int64) { metrics.RecordChunkSent(int(idx)) }
+	// Set up progress publishing and session updates
+	var sentChunks int64 = 0
+	onChunkSent := func(idx int64) {
+		sentChunks++
+		// Update session progress if present
+		if sess, err := sessionStore.Get(manifest.SessionID); err == nil {
+			bytes := sentChunks * int64(manifest.ChunkSize)
+			sess.UpdateProgress(bytes, sentChunks)
+			// Publish progress event
+			eventPublisher.PublishProgress(manifest.SessionID, sess.GetProgressPercent(), sess.GetTransferRate(), sess.GetEstimatedTimeRemaining())
+		}
+		metrics.RecordChunkSent(int(idx))
+	}
 	if err := service.SendWithOrchestration(ctx, conn, &manifest, &sk, sessionUUID, filePath, onChunkSent); err != nil {
-		logger.Error(err, "send orchestration failed"); return
+		logger.Error(err, "send orchestration failed")
+		return
 	}
 	logger.Info("Orchestrated transfer scheduled")
 }
