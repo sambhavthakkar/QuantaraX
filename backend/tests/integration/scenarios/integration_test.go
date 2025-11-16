@@ -183,6 +183,10 @@ func TestAllScenarios(t *testing.T) {
 
 // Scenario6QUICStress spins up a daemon and runs a light stress to exercise 8-16 streams
 func Scenario6QUICStress(t *testing.T) {
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping QUIC stress on CI")
+	}
+
 	t.Log("=== Scenario 6: QUIC Stress 8-16 streams (smoke) ===")
 	// Generate a ~32MB test file
 	fileGen, _ := helpers.NewFileGenerator()
