@@ -22,17 +22,17 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.22'
           cache: true
 
-       - name: Build all binaries
-         run: |
-           mkdir -p bin
-           (cd backend/bootstrap && go build -v -o ../../bin/bootstrap .)
-           (cd backend/relay && go build -v -o ../../bin/relay .)
-           (cd backend/cmd/quic_recv && go build -v -o ../../../bin/quic_recv .)
-           (cd backend/cmd/quic_send && go build -v -o ../../../bin/quic_send .)
-           (cd backend/daemon && go build -v -o ../../../bin/daemon .)
+      - name: Build all binaries
+        run: |
+          mkdir -p bin
+          (cd backend/bootstrap && go build -v -o ../../bin/bootstrap .)
+          (cd backend/relay && go build -v -o ../../bin/relay .)
+          (cd backend/cmd/quic_recv && go build -v -o ../../../bin/quic_recv .)
+          (cd backend/cmd/quic_send && go build -v -o ../../../bin/quic_send .)
+          (cd backend/daemon && go build -v -o ../../bin/daemon .)
 
       - name: Setup netem (lossy network)
         run: |

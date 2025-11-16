@@ -321,8 +321,8 @@ func (r *ChunkReceiver) ServeControlUpdates() {
 // parseChunkHeader parses the chunk message header
 func (r *ChunkReceiver) parseChunkHeader(header []byte) (int64, int, error) {
 	// Verify magic
-	magic := binary.BigEndian.Uint32(header[0:4])
-	if magic != ChunkMagic {
+	magic := string(header[0:4])
+	if magic != "QNTX" {
 		return 0, 0, ErrInvalidMagic
 	}
 
@@ -342,10 +342,10 @@ func (r *ChunkReceiver) parseChunkHeader(header []byte) (int64, int, error) {
 	}
 
 	// Extract chunk index
-	chunkIndex := int64(binary.BigEndian.Uint32(header[24:28]))
+	chunkIndex := int64(binary.LittleEndian.Uint32(header[24:28]))
 
 	// Extract payload length
-	payloadLen := int(binary.BigEndian.Uint32(header[28:32]))
+	payloadLen := int(binary.LittleEndian.Uint32(header[28:32]))
 
 	return chunkIndex, payloadLen, nil
 }
@@ -356,9 +356,9 @@ func (r *ChunkReceiver) decryptChunk(chunkIndex int64, ciphertext []byte) ([]byt
 	nonce := crypto.DeriveNonce(r.sessionKeys.IVBase, uint64(chunkIndex))
 
 	// Construct AAD from session ID and chunk index
-	aad := make([]byte, 16+8)
+	aad := make([]byte, 20)
 	copy(aad[0:16], r.sessionID[:])
-	binary.BigEndian.PutUint64(aad[16:24], uint64(chunkIndex))
+	binary.LittleEndian.PutUint32(aad[16:20], uint32(chunkIndex))
 
 	// Decrypt using AES-256-GCM
 	plaintext, err := crypto.Open(r.sessionKeys.PayloadKey[:], nonce[:], aad, ciphertext)

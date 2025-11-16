@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/quantarax/backend/internal/observability"
 	"github.com/quantarax/backend/internal/quicutil"
@@ -162,8 +163,23 @@ func sendChunk() error {
 		}
 	}
 
-	// For daemon wiring, the orchestrator is used in the server path; the CLI demo is kept minimal here.
-	fmt.Println("Connection established (demo mode)")
+	// Send the chunk
+	stream, err := conn.OpenStreamSync(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to open stream: %w", err)
+	}
+	defer stream.Close()
+
+	// Build and send chunk message
+	message := buildChunkMessage(sessionID, uint32(chunkIndex), ciphertext)
+	if _, err := stream.Write(message); err != nil {
+		return fmt.Errorf("failed to send chunk: %w", err)
+	}
+
+	fmt.Printf("Chunk %d sent successfully (%d bytes)\n", chunkIndex, len(message))
+	
+	// Give the receiver a moment to process before closing connection
+	time.Sleep(100 * time.Millisecond)
 	return nil
 }
 

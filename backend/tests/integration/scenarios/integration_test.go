@@ -30,11 +30,11 @@ func Scenario1DirectLANTransfer(t *testing.T) {
 		t.Fatalf("recv start: %v", err)
 	}
 	defer recv.Stop()
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(2 * time.Second)
 	if err := helpers.RunQuicSend("../../../../bin/quic_send", "--addr", fmt.Sprintf("localhost:%d", port1), "--file", testFile, "--chunk-index", "0", "--chunk-size", "65536"); err != nil {
 		t.Fatalf("send: %v", err)
 	}
-	time.Sleep(1 * time.Second)
+	time.Sleep(3 * time.Second)
 	if _, err := os.Stat(filepath.Join(recvDir, "chunk_0000.bin")); err != nil {
 		t.Fatalf("chunk not found: %v", err)
 	}

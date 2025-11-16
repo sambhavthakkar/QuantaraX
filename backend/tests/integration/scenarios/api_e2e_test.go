@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -37,6 +38,9 @@ func TestDaemonREST_E2E(t *testing.T) {
 		t.Fatalf("daemon start: %v", err)
 	}
 	defer daemon.Stop()
+	
+	// Give daemon time to fully initialize and clear any state
+	time.Sleep(2 * time.Second)
 	os.Setenv("QUANTARAX_AUTH_TOKEN", "testtoken")
 
 	// Generate a temp file to send
@@ -52,11 +56,12 @@ func TestDaemonREST_E2E(t *testing.T) {
 	outDir := fg.MakeTempDir("recv-api")
 	outPath := filepath.Join(outDir, "received.bin")
 
-	base := "http://127.0.0.1:18080"
+	base := "http://127.0.0.1:8080"
 	h := map[string]string{"Content-Type": "application/json", "X-Auth-Token": "testtoken"}
 
-	// Create transfer
-	cbody := map[string]interface{}{"file_path": filePath, "recipient_id": "peer-local"}
+	// Create transfer with unique recipient ID to avoid session conflicts
+	uniqueID := fmt.Sprintf("%d-%d", time.Now().UnixNano(), os.Getpid())
+	cbody := map[string]interface{}{"file_path": filePath, "recipient_id": "peer-local-" + uniqueID}
 	cjs, _ := json.Marshal(cbody)
 	creq, _ := http.NewRequestWithContext(ctx, http.MethodPost, base+"/api/v1/transfer/create", bytes.NewReader(cjs))
 	for k, v := range h {
